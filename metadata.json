@@ -1,0 +1,6 @@
+{
+  "name": "Quick Coffee Admin Dashboard",
+  "description": "Modern and responsive web administration dashboard for Quick Coffee ordering platform, featuring order management, slip verification, stock control, menu pricing, coupons, and comprehensive branch diagnostics.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
