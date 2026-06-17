@@ -21,13 +21,50 @@ export type RefundStatus = 'Refund Pending' | 'Refund Completed';
 export type VerificationResult = 'MATCHED' | 'MISMATCH' | 'DUPLICATE' | 'INVALID' | 'WRONG_RECEIVER';
 export type VerificationStatus = 'auto_approved' | 'pending_review' | 'rejected' | 'not_submitted';
 
+export interface AddonOption {
+  id: string;
+  name: string;
+  price: number;       // additional price
+  isDefault: boolean;
+  enabled: boolean;
+}
+
+export interface AddonGroup {
+  id: string;
+  name: string;
+  type: 'single' | 'multiple';
+  required: boolean;
+  order: number;
+  options: AddonOption[];
+}
+
+export type SpecialMenuType = 'Seasonal' | 'Limited Edition' | 'New Arrival' | 'Recommended' | 'Promotion';
+export interface SpecialMenuMeta {
+  type: SpecialMenuType;
+  description?: string;
+  startDate?: string;   // YYYY-MM-DD
+  endDate?: string;     // YYYY-MM-DD
+  priority: number;
+  active: boolean;
+  publish: 'Draft' | 'Published' | 'Expired';
+  featured?: boolean;   // feature on home screen
+}
+
 export interface CoffeeItem {
   id: string;
   name: string;
   category: 'Coffee' | 'Beverage' | 'Bakery';
   price: number;
-  status: 'Available' | 'Out of Stock';
-  image: string;
+  status: 'Available' | 'Out of Stock' | 'Hidden';
+  image: string;                 // emoji fallback
+  coverImage?: string;           // uploaded data URL (preferred when present)
+  description?: string;
+  displayOrder?: number;
+  archived?: boolean;
+  addonGroups?: AddonGroup[];
+  branchPrices?: Record<string, number>;       // per-branch price override
+  branchAvailable?: Record<string, boolean>;   // per-branch availability
+  special?: SpecialMenuMeta;
 }
 
 export interface OrderItem {
