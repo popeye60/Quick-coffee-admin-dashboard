@@ -15,6 +15,7 @@ import CouponsView from './components/CouponsView';
 import OtherViews from './components/OtherViews';
 import BranchPricingView from './components/BranchPricingView';
 import QueueDisplayView from './components/QueueDisplayView';
+import BranchManagementView from './components/BranchManagementView';
 import { 
   INITIAL_MENU_ITEMS, 
   INITIAL_ORDERS, 
@@ -751,8 +752,16 @@ export default function App() {
             />
           )}
 
+          {currentTab === 'Branches' && (
+            <BranchManagementView
+              orders={orders}
+              roleMode={roleMode}
+              staffAssignedBranch={staffAssignedBranch}
+            />
+          )}
+
           {/* Fallback auxiliary screens container */}
-          {!['Dashboard', 'Orders', 'Payment Verification', 'Stock Management', 'Menu & Pricing', 'Coupons', 'Branch Pricing', 'Queue Display'].includes(currentTab) && (
+          {!['Dashboard', 'Orders', 'Payment Verification', 'Stock Management', 'Menu & Pricing', 'Coupons', 'Branch Pricing', 'Queue Display', 'Branches'].includes(currentTab) && (
             <OtherViews 
               tab={currentTab}
               activities={activities}

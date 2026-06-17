@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Order, OrderStatus, Branch, CancellationReason, RefundStatus, Ingredient } from '../types';
-import { StatusBadge } from './DashboardView';
 import {
   Search,
   X,
@@ -101,9 +100,39 @@ export default function OrdersView({
   });
 
   const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const tr = (th: string, en: string) => (language === 'TH' ? th : en);
+
+  // ── SINGLE SOURCE OF TRUTH for an order's displayed status ───────────────────
+  // Table badge, Staff card, and Side Panel all read from here so they never disagree.
+  interface OrderDisplay { label: string; cls: string; payment: string; queue: string; }
+  const deriveStatus = (o: Order): OrderDisplay => {
+    const autoCancelled = o.status === 'Cancelled' && o.cancellationReason === 'Customer Did Not Pay';
+    if (o.status === 'Cancelled') {
+      return {
+        label: autoCancelled ? tr('ยกเลิกอัตโนมัติ', 'Auto-cancelled') : tr('ยกเลิกแล้ว', 'Cancelled'),
+        cls: 'bg-red-50 text-red-600 border border-red-200/60',
+        payment: o.paymentStatus === 'Paid' ? tr('สำเร็จ', 'Success') : tr('ยกเลิก', 'Cancelled'),
+        queue: o.queueNo ? tr('สร้างคิวแล้ว', 'Created') : tr('ยังไม่สร้างคิว', 'Not created'),
+      };
+    }
+    // Rule 4: a FAILED payment never shows "รอชำระเงิน" in the table
+    if (o.paymentStatus === 'Failed') {
+      return { label: tr('ชำระเงินไม่สำเร็จ', 'Payment Failed'), cls: 'bg-orange-50 text-orange-700 border border-orange-200/60', payment: tr('ล้มเหลว', 'Failed'), queue: tr('ยังไม่สร้างคิว', 'Not created') };
+    }
+    if (o.status === 'Pending Payment') {
+      return { label: tr('รอชำระเงิน', 'Pending Payment'), cls: 'bg-amber-50 text-amber-700 border border-amber-200/60', payment: tr('รอชำระเงิน', 'Pending'), queue: tr('ยังไม่สร้างคิว', 'Not created') };
+    }
+    // Payment SUCCESS — Paid (and onward through the production workflow)
+    const wfLabel = ({ 'Paid': tr('ชำระเงินแล้ว', 'Paid'), 'Preparing': tr('กำลังเตรียม', 'Preparing'), 'Ready For Pickup': tr('พร้อมเสิร์ฟ', 'Ready'), 'Queue Called': tr('เรียกคิวแล้ว', 'Queue Called'), 'Completed': tr('เสร็จสิ้น', 'Completed') } as Record<string, string>)[o.status] ?? o.status;
+    const wfCls = ({ 'Paid': 'bg-emerald-50 text-emerald-800 border border-emerald-200/60', 'Preparing': 'bg-sky-50 text-sky-800 border border-sky-200/60', 'Ready For Pickup': 'bg-green-50 text-green-800 border border-green-200/60', 'Queue Called': 'bg-green-50 text-green-800 border border-green-200/60', 'Completed': 'bg-stone-100 text-stone-700 border border-stone-200/60' } as Record<string, string>)[o.status] ?? 'bg-zinc-100 text-zinc-700';
+    return { label: wfLabel, cls: wfCls, payment: tr('สำเร็จ', 'Success'), queue: tr('สร้างคิวแล้ว', 'Created') };
+  };
+  const StatusPill = ({ order }: { order: Order }) => {
+    const d = deriveStatus(order);
+    return <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded text-[10.5px] font-sans font-semibold tracking-wide ${d.cls}`}>{d.label}</span>;
+  };
 
   // ── Staff Queue Board (operational card list) ───────────────────────────────
-  // Phase 1: no separate "Payment Failed" status — every unconfirmed order is simply "Pending Payment".
   const isPaidOrder = (o: Order) =>
     o.paymentStatus === 'Paid' || ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
 
@@ -521,7 +550,7 @@ export default function OrdersView({
                           <div className="font-mono text-[10px] text-zinc-400 mt-0.5">{order.customerPhone}</div>
                         </td>
                         <td className="align-middle py-2 px-4 font-sans text-xs text-zinc-600 font-medium">{order.branch}</td>
-                        <td className="align-middle py-2 px-4 text-center"><StatusBadge status={order.status} /></td>
+                        <td className="align-middle py-2 px-4 text-center"><StatusPill order={order} /></td>
                         <td className="align-middle py-2 px-4 font-mono text-xs font-bold text-[#8B6B4F] text-right">{formatCurrency(order.amount)}</td>
                         <td className="align-middle py-2 px-4 font-mono text-xs text-zinc-500">{order.time}</td>
                       </tr>
@@ -611,7 +640,7 @@ export default function OrdersView({
                         </div>
                         <div className="flex items-center gap-2.5 mt-2 flex-wrap">
                           <span className="text-[11px] font-mono text-zinc-400">⏱ {order.time}</span>
-                          <StatusBadge status={order.status} />
+                          <StatusPill order={order} />
                         </div>
                         {isPending && (
                           <p className={`mt-1.5 inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-full font-mono ${leftColor(left)}`}>
@@ -665,7 +694,7 @@ export default function OrdersView({
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-xs font-extrabold text-zinc-900">{selectedOrder.id}</span>
-                  <StatusBadge status={selectedOrder.status} />
+                  <StatusPill order={selectedOrder} />
                 </div>
                 <p className="font-sans text-[10.5px] text-zinc-500 mt-0.5">
                   {language === 'TH' ? 'สาขา: ' : 'Branch: '}<strong className="text-zinc-700">{selectedOrder.branch}</strong>
@@ -757,19 +786,28 @@ export default function OrdersView({
                     <span>{language === 'TH' ? 'ช่องทางชำระ:' : 'Method:'}</span>
                     <span className="text-zinc-800 font-semibold text-[11px]">💳 {selectedOrder.paymentMethod}</span>
                   </div>
-                  <div className="flex justify-between items-center text-zinc-500">
-                    <span>{language === 'TH' ? 'สถานะชำระเงิน:' : 'Payment Status:'}</span>
-                    <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold ${
-                      selectedOrder.paymentStatus === 'Paid' ? 'bg-emerald-50 text-emerald-700'
-                      : selectedOrder.paymentStatus === 'Failed' ? 'bg-red-50 text-red-700'
-                      : selectedOrder.paymentStatus === 'Refunded' ? 'bg-sky-50 text-sky-700'
-                      : 'bg-amber-50 text-amber-700'
-                    }`}>
-                      {selectedOrder.paymentStatus === 'Pending Payment' ? (language === 'TH' ? 'รอชำระ' : 'Pending')
-                        : selectedOrder.paymentStatus === 'Failed' ? (language === 'TH' ? 'ล้มเหลว' : 'Failed')
-                        : selectedOrder.paymentStatus}
-                    </span>
-                  </div>
+                  {(() => {
+                    const d = deriveStatus(selectedOrder);
+                    const paid = selectedOrder.paymentStatus === 'Paid';
+                    const failed = selectedOrder.paymentStatus === 'Failed';
+                    const hasQueue = !!selectedOrder.queueNo;
+                    return (
+                      <>
+                        <div className="flex justify-between items-center text-zinc-500">
+                          <span>{language === 'TH' ? 'สถานะชำระเงิน:' : 'Payment Status:'}</span>
+                          <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold ${paid ? 'bg-emerald-50 text-emerald-700' : failed ? 'bg-orange-50 text-orange-700' : selectedOrder.paymentStatus === 'Refunded' ? 'bg-sky-50 text-sky-700' : 'bg-amber-50 text-amber-700'}`}>
+                            {d.payment}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center text-zinc-500">
+                          <span>{language === 'TH' ? 'สถานะคิว:' : 'Queue Status:'}</span>
+                          <span className={`font-mono text-[10px] px-1.5 py-0.5 rounded font-bold ${hasQueue ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-500'}`}>
+                            {d.queue}
+                          </span>
+                        </div>
+                      </>
+                    );
+                  })()}
                   <div className="flex justify-between items-center text-zinc-500">
                     <span>{language === 'TH' ? 'คูปอง:' : 'Coupon:'}</span>
                     <span className="font-mono text-[10px] text-emerald-600 bg-emerald-50 px-1.5 rounded font-bold">

@@ -71,13 +71,13 @@ export default function Sidebar({
       items: [
         { name: 'Orders' as SidebarTab, icon: <Coffee size={17} />, label: language === 'TH' ? 'รายการออเดอร์กาแฟ' : 'Orders & Queue' },
         { name: 'Queue Display' as SidebarTab, icon: <Tv size={17} />, label: language === 'TH' ? 'ระบบเรียกคิวและดูจอทีวี' : 'Queue Monitor & TV' },
-        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'จัดการสต็อกวัตถุดิบ' : 'Stock & Ingredients' }
+        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'ตรวจนับสต็อกประจำวัน' : 'Daily Stock Count' }
       ]
     },
     {
       title: language === 'TH' ? 'การจัดการสิทธิธุรกิจ' : 'Business Management',
       items: [
-        { name: 'Branches' as SidebarTab, icon: <Store size={17} />, label: language === 'TH' ? 'ควบคุมสาขาทั้งหมด' : 'Branch Settings' },
+        { name: 'Branches' as SidebarTab, icon: <Store size={17} />, label: language === 'TH' ? 'จัดการสาขา' : 'Branch Management' },
         { name: 'Menu & Pricing' as SidebarTab, icon: <Tag size={17} />, label: language === 'TH' ? 'แค็ตตาล็อกเมนูหลัก' : 'Menu Catalog' },
         { name: 'Branch Pricing' as SidebarTab, icon: <Tag size={17} />, label: language === 'TH' ? 'กำหนดราคาแยกรายสาขา' : 'Branch Pricing' },
         { name: 'Promotions' as SidebarTab, icon: <Bell size={17} />, label: language === 'TH' ? 'ส่งข่าวสารโปรโมชัน' : 'Promotion Broadcast' },

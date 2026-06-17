@@ -119,6 +119,84 @@ export const INITIAL_ORDERS: Order[] = [
     ]
   },
   {
+    id: 'ORD-20260525-156',
+    queueNo: '',
+    customerName: 'Pakorn W.',
+    customerPhone: '086-321-7788',
+    customerEmail: 'pakorn.w@gmail.com',
+    branch: 'Central Plaza',
+    status: 'Pending Payment',
+    amount: 90,
+    time: '10:48',
+    orderTime: '25 May 2026, 10:48',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    verificationStatus: 'pending_review',
+    note: 'ไม่หวาน (No sugar)',
+    items: [
+      { item: INITIAL_MENU_ITEMS[2], qty: 1, price: 90, total: 90 } // Latte
+    ],
+    timeline: [
+      { status: 'Pending Payment', time: '25 May 2026, 10:48', active: true },
+      { status: 'Paid', time: '', active: false },
+      { status: 'Preparing', time: '', active: false },
+      { status: 'Ready For Pickup', time: '', active: false },
+      { status: 'Completed', time: '', active: false }
+    ]
+  },
+  {
+    id: 'ORD-20260525-155',
+    queueNo: '',
+    customerName: 'Nicha T.',
+    customerPhone: '094-552-3311',
+    customerEmail: 'nicha.t@outlook.com',
+    branch: 'Siam Square',
+    status: 'Pending Payment',
+    amount: 160,
+    time: '10:47',
+    orderTime: '25 May 2026, 10:47',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    verificationStatus: 'pending_review',
+    items: [
+      { item: INITIAL_MENU_ITEMS[1], qty: 1, price: 75, total: 75 }, // Americano
+      { item: INITIAL_MENU_ITEMS[4], qty: 1, price: 85, total: 85 }  // Chocolate Croissant
+    ],
+    timeline: [
+      { status: 'Pending Payment', time: '25 May 2026, 10:47', active: true },
+      { status: 'Paid', time: '', active: false },
+      { status: 'Preparing', time: '', active: false },
+      { status: 'Ready For Pickup', time: '', active: false },
+      { status: 'Completed', time: '', active: false }
+    ]
+  },
+  {
+    id: 'ORD-20260525-154',
+    queueNo: '',
+    customerName: 'Theerapat S.',
+    customerPhone: '081-770-4422',
+    customerEmail: 'theerapat.s@gmail.com',
+    branch: 'Mega Bangna',
+    status: 'Pending Payment',
+    amount: 240,
+    time: '10:46',
+    orderTime: '25 May 2026, 10:46',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    verificationStatus: 'pending_review',
+    note: 'แยกถุง 2 ใบ (2 separate bags)',
+    items: [
+      { item: INITIAL_MENU_ITEMS[0], qty: 2, price: 120, total: 240 } // Caramel Macchiato
+    ],
+    timeline: [
+      { status: 'Pending Payment', time: '25 May 2026, 10:46', active: true },
+      { status: 'Paid', time: '', active: false },
+      { status: 'Preparing', time: '', active: false },
+      { status: 'Ready For Pickup', time: '', active: false },
+      { status: 'Completed', time: '', active: false }
+    ]
+  },
+  {
     id: 'ORD-20260525-151',
     queueNo: '002',
     customerName: 'Piyawat T.',
