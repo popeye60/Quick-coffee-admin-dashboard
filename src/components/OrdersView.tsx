@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Order, OrderStatus, Branch, CancellationReason, RefundStatus } from '../types';
+import { Order, OrderStatus, Branch, CancellationReason, RefundStatus, Ingredient } from '../types';
 import { StatusBadge } from './DashboardView';
 import {
   Search,
@@ -12,12 +12,17 @@ import {
   ChevronDown,
   ChevronUp,
   AlertCircle,
-  RotateCcw
+  RotateCcw,
+  Coffee,
+  CheckCircle,
+  AlertTriangle
 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
 interface OrdersViewProps {
   orders: Order[];
+  ingredients: Ingredient[];
+  nowMin: number;
   updateOrderStatus: (orderId: string, status: OrderStatus) => void;
   cancelOrderWithReason: (orderId: string, reason: CancellationReason, note: string) => void;
   updateRefundStatus: (orderId: string, status: RefundStatus, note: string) => void;
@@ -30,16 +35,18 @@ interface OrdersViewProps {
   staffAssignedBranch: string;
 }
 
+// Minutes a customer has to pay before the order is auto-cancelled
+const PAYMENT_TIMEOUT_MIN = 10;
+
 const CANCELLATION_REASONS: CancellationReason[] = [
+  'Customer Did Not Pay',
   'Customer Requested Cancellation',
   'Wrong Order Selected',
-  'Out of Stock',
-  'Store Unable to Fulfill',
-  'Staff Error',
   'Other',
 ];
 
 const CANCELLATION_REASONS_TH: Record<CancellationReason, string> = {
+  'Customer Did Not Pay': 'ลูกค้าไม่ชำระเงิน',
   'Customer Requested Cancellation': 'ลูกค้าขอยกเลิก',
   'Wrong Order Selected': 'สั่งผิดรายการ',
   'Out of Stock': 'วัตถุดิบหมด',
@@ -50,6 +57,8 @@ const CANCELLATION_REASONS_TH: Record<CancellationReason, string> = {
 
 export default function OrdersView({
   orders,
+  ingredients,
+  nowMin,
   updateOrderStatus,
   cancelOrderWithReason,
   updateRefundStatus,
@@ -63,6 +72,7 @@ export default function OrdersView({
 }: OrdersViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All Statuses');
+  const [queueTab, setQueueTab] = useState<'all' | 'failed' | 'Pending Payment' | 'Preparing' | 'Ready For Pickup' | 'Completed'>('all');
   const [exportSuccess, setExportSuccess] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   // Cancellation form state
@@ -91,6 +101,86 @@ export default function OrdersView({
   });
 
   const selectedOrder = orders.find(o => o.id === selectedOrderId);
+
+  // ── Staff Queue Board (operational card list) ───────────────────────────────
+  // Phase 1: no separate "Payment Failed" status — every unconfirmed order is simply "Pending Payment".
+  const isPaidOrder = (o: Order) =>
+    o.paymentStatus === 'Paid' || ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
+
+  // Uniform action-button size for every status (160×48, radius 12, 14px/600, single line, centered)
+  const ACTION_BTN = 'w-40 h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 px-4 whitespace-nowrap transition-all shadow-xs';
+
+  // Priority: Pending Payment → Paid → Preparing → Ready → Completed
+  const priorityOf = (o: Order) =>
+    ({ 'Pending Payment': 1, 'Paid': 2, 'Preparing': 3, 'Ready For Pickup': 4, 'Queue Called': 4, 'Completed': 5, 'Cancelled': 6 } as Record<string, number>)[o.status] ?? 9;
+
+  const queueTabs = [
+    { key: 'all', label: language === 'TH' ? 'ทั้งหมด' : 'All' },
+    { key: 'Pending Payment', label: language === 'TH' ? 'รอชำระเงิน' : 'Pending' },
+    { key: 'Preparing', label: language === 'TH' ? 'กำลังเตรียม' : 'Preparing' },
+    { key: 'Ready For Pickup', label: language === 'TH' ? 'พร้อมเสิร์ฟ' : 'Ready' },
+    { key: 'Completed', label: language === 'TH' ? 'เสร็จสิ้น' : 'Done' },
+  ] as const;
+  const matchesTab = (o: Order, tab: string) => {
+    if (tab === 'all') return o.status !== 'Cancelled';
+    if (tab === 'Pending Payment') return o.status === 'Pending Payment';
+    if (tab === 'Preparing') return o.status === 'Preparing' || o.status === 'Paid'; // Paid orders await preparation
+    return o.status === tab;
+  };
+  const tabCount = (tab: string) => filteredOrders.filter(o => matchesTab(o, tab)).length;
+  const staffQueue = filteredOrders
+    .filter(o => matchesTab(o, queueTab))
+    .sort((a, b) => (priorityOf(a) - priorityOf(b)) || a.time.localeCompare(b.time));
+
+  // Minutes remaining before auto-cancel (10-min payment window). nowMin is supplied by App's clock.
+  const toMin = (t: string) => { const m = t.match(/(\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : 0; };
+  const minutesLeft = (o: Order) => Math.max(0, Math.min(PAYMENT_TIMEOUT_MIN, PAYMENT_TIMEOUT_MIN - (nowMin - toMin(o.time))));
+  const leftColor = (m: number) =>
+    m <= 2 ? 'bg-orange-100 text-orange-800' : m <= 5 ? 'bg-yellow-100 text-yellow-800' : 'bg-stone-100 text-zinc-500';
+
+  // Status colours: Pending=yellow, Paid=emerald, Preparing=sky, Ready=green, Completed=gray, Cancelled=red
+  const queueStyle = (o: Order): { border: string; chip: string } => {
+    switch (o.status) {
+      case 'Pending Payment': return { border: 'border-l-yellow-400', chip: 'bg-yellow-100 text-yellow-900' };
+      case 'Paid': return { border: 'border-l-emerald-400', chip: 'bg-emerald-100 text-emerald-900' };
+      case 'Preparing': return { border: 'border-l-sky-400', chip: 'bg-sky-100 text-sky-900' };
+      case 'Ready For Pickup': return { border: 'border-l-green-500', chip: 'bg-green-100 text-green-900' };
+      case 'Cancelled': return { border: 'border-l-red-500', chip: 'bg-red-100 text-red-700' };
+      default: return { border: 'border-l-zinc-300', chip: 'bg-zinc-100 text-zinc-500' };
+    }
+  };
+  const nextQueueAction = (o: Order): { label: string; to: OrderStatus; cls: string } | null => {
+    if (o.status === 'Paid') return { label: language === 'TH' ? 'เริ่มเตรียม' : 'Start Preparing', to: 'Preparing', cls: 'bg-sky-600 hover:bg-sky-700 text-white' };
+    if (o.status === 'Preparing') return { label: language === 'TH' ? 'พร้อมเสิร์ฟ' : 'Mark Ready', to: 'Ready For Pickup', cls: 'bg-green-600 hover:bg-green-700 text-white' };
+    if (o.status === 'Ready For Pickup') return { label: language === 'TH' ? 'ส่งมอบเสร็จสิ้น' : 'Complete', to: 'Completed', cls: 'bg-[#8B6B4F] hover:bg-[#70533C] text-white' };
+    return null;
+  };
+
+  // ── Operational Status (moved here from the Dashboard) ──────────────────────
+  const inBranch = (b: string) => activeBranch === 'All Branches' || b === activeBranch;
+  const opPreparing = orders.filter(o => inBranch(o.branch) && o.status === 'Preparing').length;
+  const opReady = orders.filter(o => inBranch(o.branch) && o.status === 'Ready For Pickup').length;
+  const opLowStock = ingredients.filter(i => inBranch(i.branch) && (i.status === 'Low Stock' || i.status === 'Out of Stock')).length;
+  const opCards = [
+    {
+      title: language === 'TH' ? 'กำลังเตรียมเครื่องดื่ม' : 'Preparing Orders',
+      value: opPreparing,
+      icon: <Coffee size={18} className="text-blue-500" />,
+      bg: 'bg-blue-50/30 border-blue-100',
+    },
+    {
+      title: language === 'TH' ? 'พร้อมสำหรับให้บริการ' : 'Ready For Pickup',
+      value: opReady,
+      icon: <CheckCircle size={18} className="text-green-600" />,
+      bg: 'bg-green-50/30 border-green-100',
+    },
+    {
+      title: language === 'TH' ? 'วัตถุดิบใกล้วิกฤต' : 'Critical Stock Alerts',
+      value: opLowStock,
+      icon: <AlertTriangle size={18} className={opLowStock > 0 ? 'text-orange-500' : 'text-zinc-400'} />,
+      bg: opLowStock > 0 ? 'bg-orange-50/40 border-orange-200' : 'bg-stone-50 border-stone-200',
+    },
+  ];
 
   const handleCSVExport = () => {
     setExportSuccess(true);
@@ -122,52 +212,9 @@ export default function OrdersView({
     // Already cancelled
     if (order.status === 'Cancelled') return null;
 
-    // Pending Payment — failed or waiting
-    if (order.status === 'Pending Payment') {
-      if (order.paymentStatus === 'Failed') {
-        return (
-          <div className="space-y-2">
-            <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-1.5">
-              <div className="flex items-center gap-2">
-                <span className="text-base">❌</span>
-                <p className="font-sans text-[11px] text-red-700 font-bold">
-                  {language === 'TH' ? 'การชำระเงินไม่สำเร็จ' : 'Payment Failed'}
-                </p>
-              </div>
-              {order.verificationReason && (
-                <p className="font-sans text-[10px] text-red-600 leading-relaxed">{order.verificationReason}</p>
-              )}
-              <button
-                onClick={() => updateOrderStatus(order.id, 'Cancelled')}
-                className="w-full py-1.5 border border-red-300 hover:bg-red-100 text-red-700 text-[11px] font-semibold rounded-lg font-sans transition-all text-center cursor-pointer"
-              >
-                {language === 'TH' ? 'ยกเลิกคำสั่งซื้อนี้' : 'Cancel Order'}
-              </button>
-            </div>
-          </div>
-        );
-      }
-      return (
-        <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl space-y-2">
-          <div className="flex items-center gap-2">
-            <span className="h-2 w-2 rounded-full bg-amber-500 animate-ping shrink-0" />
-            <p className="font-sans text-[11px] text-amber-800 font-bold">
-              {language === 'TH' ? 'กำลังรอการยืนยันการชำระเงิน' : 'Waiting for Payment Confirmation'}
-            </p>
-          </div>
-          <p className="font-sans text-[10px] text-amber-700 leading-relaxed">
-            {language === 'TH'
-              ? 'ระบบกำลังตรวจสอบการชำระเงินอัตโนมัติ จะอัปเดตสถานะโดยอัตโนมัติเมื่อธนาคารยืนยัน'
-              : 'Auto-confirming payment via bank API. Status will update automatically once confirmed.'
-            }
-          </p>
-        </div>
-      );
-    }
-
-    // Inline cancellation form (for paid orders)
+    // Inline cancellation form (reason selection) — available for any cancellable order
     if (showCancelForm) {
-      const isPaidOrder = order.paymentStatus === 'Paid';
+      const paidOrder = order.paymentStatus === 'Paid';
       return (
         <div className="space-y-3 p-3 bg-red-50 border border-red-200 rounded-xl">
           <div className="flex items-center justify-between">
@@ -180,7 +227,7 @@ export default function OrdersView({
             </button>
           </div>
 
-          {isPaidOrder && (
+          {paidOrder && (
             <div className="p-2 bg-amber-50 border border-amber-200 rounded-lg text-[10px] font-sans text-amber-800 font-semibold">
               {language === 'TH'
                 ? `⚠️ ออเดอร์นี้ชำระเงินแล้ว ฿${order.amount.toLocaleString()} ระบบจะบันทึกสถานะ "รอคืนเงิน" โดยอัตโนมัติ`
@@ -230,6 +277,53 @@ export default function OrdersView({
             className="w-full py-2 bg-red-600 hover:bg-red-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-[11px] font-bold rounded-lg font-sans transition-all cursor-pointer"
           >
             {language === 'TH' ? 'ยืนยันยกเลิกออเดอร์' : 'Confirm Cancellation'}
+          </button>
+        </div>
+      );
+    }
+
+    // Pending Payment — awaiting payment within the 10-min window; cancel goes through the reason form
+    if (order.status === 'Pending Payment') {
+      const left = Math.max(0, PAYMENT_TIMEOUT_MIN - (nowMin - toMin(order.time)));
+      return (
+        <div className="space-y-2.5">
+          {/* Awaiting payment summary */}
+          <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-xl space-y-1.5 text-[11px] font-sans">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-yellow-500 animate-ping shrink-0" />
+              <p className="text-yellow-800 font-bold">{language === 'TH' ? 'รอชำระเงิน' : 'Awaiting Payment'}</p>
+            </div>
+            <div className="flex justify-between text-yellow-800/90">
+              <span>{language === 'TH' ? 'เวลาที่สร้างออเดอร์' : 'Created at'}</span>
+              <span className="font-mono font-semibold">{order.time}</span>
+            </div>
+            <div className="flex justify-between text-yellow-800/90">
+              <span>{language === 'TH' ? 'ยกเลิกอัตโนมัติใน' : 'Auto-cancel in'}</span>
+              <span className="font-mono font-bold">{language === 'TH' ? `${left} นาที` : `${left} min`}</span>
+            </div>
+            <div className="flex justify-between text-yellow-800/90">
+              <span>{language === 'TH' ? 'ยอดที่ต้องชำระ' : 'Amount due'}</span>
+              <span className="font-mono font-bold">{formatCurrency(order.amount)}</span>
+            </div>
+            <div className="flex justify-between text-yellow-800/90">
+              <span>{language === 'TH' ? 'วิธีชำระเงิน' : 'Method'}</span>
+              <span className="font-semibold">{order.paymentMethod}</span>
+            </div>
+          </div>
+          <button
+            id="workflow-recheck-btn"
+            onClick={() => updateOrderStatus(order.id, 'Paid')}
+            className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+          >
+            <RotateCcw size={13} /> {language === 'TH' ? 'ตรวจสอบการชำระเงินอีกครั้ง' : 'Re-check Payment'}
+          </button>
+          {/* Unpaid orders may be cancelled (with a reason) while payment is unconfirmed */}
+          <button
+            id="workflow-cancel-btn"
+            onClick={() => setShowCancelForm(true)}
+            className="w-full py-1.5 border border-red-200 hover:border-red-300 hover:bg-red-50 text-red-600 text-[11px] font-semibold rounded-lg font-sans transition-all text-center cursor-pointer"
+          >
+            {language === 'TH' ? 'ยกเลิกคำสั่งซื้อนี้' : 'Cancel Order'}
           </button>
         </div>
       );
@@ -292,6 +386,26 @@ export default function OrdersView({
 
   return (
     <div className="p-6 relative">
+      {/* ── Operational Status — Staff only (operators); Admin is read-only review ── */}
+      {roleMode === 'Staff' && (
+        <div className="mb-6 space-y-1.5">
+          <h4 className="font-sans font-bold text-[10px] text-[#8B6B4F] uppercase tracking-wider">
+            {language === 'TH' ? 'สถานะการดำเนินงาน' : 'Operational Status'}
+          </h4>
+          <div className="grid grid-cols-3 gap-3.5">
+            {opCards.map(card => (
+              <div key={card.title} className={`p-3.5 rounded-xl border ${card.bg} bg-white flex items-center justify-between shadow-xs`}>
+                <div>
+                  <span className="font-sans text-[10px] font-bold text-zinc-500 tracking-tight block">{card.title}</span>
+                  <h3 className="font-sans font-black text-lg text-[#2E2A25] tracking-tight mt-1">{card.value}</h3>
+                </div>
+                <div className="p-1 rounded bg-[#FDF1E6]/30 border border-[#E6DFD9]/40 shrink-0">{card.icon}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-col lg:flex-row gap-6 items-start animate-fade-in">
 
         {/* ── Orders Table ─────────────────────────────────────────────────── */}
@@ -361,7 +475,8 @@ export default function OrdersView({
             </div>
           )}
 
-          {/* Table */}
+          {/* Admin: full data table | Staff: operational queue board */}
+          {roleMode === 'Admin' ? (
           <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
@@ -428,6 +543,114 @@ export default function OrdersView({
               </div>
             </div>
           </div>
+          ) : (
+          /* ── STAFF: operational queue card board ── */
+          <div className="space-y-4">
+            {/* Tab filters by status */}
+            <div className="flex flex-wrap gap-2">
+              {queueTabs.map(t => {
+                const active = queueTab === t.key;
+                const count = tabCount(t.key);
+                return (
+                  <button
+                    key={t.key}
+                    id={`queue-tab-${t.key.replace(/\s+/g, '-').toLowerCase()}`}
+                    onClick={() => setQueueTab(t.key as typeof queueTab)}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${active ? 'bg-[#8B6B4F] text-white shadow-xs' : 'bg-white border border-[#E6DFD9] text-zinc-600 hover:bg-stone-50'}`}
+                  >
+                    {t.label}
+                    <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20' : 'bg-stone-100 text-zinc-500'}`}>{count}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Queue cards */}
+            {staffQueue.length === 0 ? (
+              <div className="p-12 text-center bg-white border border-dashed border-[#E6DFD9] rounded-2xl">
+                <p className="text-sm text-zinc-400 font-sans">{language === 'TH' ? 'ไม่มีคิวในสถานะนี้' : 'No orders in this status'}</p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {staffQueue.map(order => {
+                  const st = queueStyle(order);
+                  const action = nextQueueAction(order);
+                  const itemsText = order.items.map(i => `${i.item.name} ×${i.qty}`).join(', ');
+                  const isReady = order.status === 'Ready For Pickup';
+                  const isPending = order.status === 'Pending Payment';
+                  const left = minutesLeft(order);
+                  // Ready For Pickup gets an oversized green queue chip for at-a-glance visibility
+                  const chipSize = isReady ? 'w-24 h-24' : 'w-20 h-20';
+                  const numSize = isReady ? 'text-4xl' : 'text-3xl';
+                  return (
+                    <div
+                      key={order.id}
+                      id={`queue-card-${order.id}`}
+                      onClick={() => { setSelectedOrderId(order.id); setTimelineOpen(false); setShowCancelForm(false); setShowRefundForm(false); }}
+                      className={`bg-white border border-[#E6DFD9] border-l-4 ${st.border} ${isReady ? 'bg-green-50/40' : ''} rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer p-4 flex items-center gap-4`}
+                    >
+                      {/* Big queue number — created only after payment is confirmed */}
+                      <div className={`shrink-0 ${chipSize} rounded-2xl flex flex-col items-center justify-center px-1 ${st.chip}`}>
+                        {order.queueNo ? (
+                          <>
+                            <span className="text-[8.5px] font-mono font-bold uppercase opacity-70 leading-none">{language === 'TH' ? 'คิว' : 'Queue'}</span>
+                            <span className={`font-mono font-black ${numSize} leading-none mt-1`}>{order.queueNo}</span>
+                          </>
+                        ) : (
+                          <span className="text-[9.5px] font-sans font-bold leading-tight text-center opacity-80">
+                            {language === 'TH' ? 'ยังไม่สร้างคิว' : 'No queue yet'}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Minimal info: items · amount · time · status (+ pay countdown) */}
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-sans font-bold text-sm text-zinc-800 leading-snug line-clamp-1">{itemsText}</p>
+                          <span className="font-mono font-black text-sm text-[#8B6B4F] shrink-0 whitespace-nowrap">{formatCurrency(order.amount)}</span>
+                        </div>
+                        <div className="flex items-center gap-2.5 mt-2 flex-wrap">
+                          <span className="text-[11px] font-mono text-zinc-400">⏱ {order.time}</span>
+                          <StatusBadge status={order.status} />
+                        </div>
+                        {isPending && (
+                          <p className={`mt-1.5 inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-full font-mono ${leftColor(left)}`}>
+                            {language === 'TH' ? `รอชำระอีก ${left} นาที` : `${left} min left to pay`}
+                          </p>
+                        )}
+                      </div>
+
+                      {/* Single primary action — uniform size for every status */}
+                      <div className="shrink-0" onClick={e => e.stopPropagation()}>
+                        {isPending ? (
+                          <button
+                            id={`queue-recheck-${order.id}`}
+                            onClick={() => updateOrderStatus(order.id, 'Paid')}
+                            className={`${ACTION_BTN} bg-sky-600 hover:bg-sky-700 text-white`}
+                          >
+                            <RotateCcw size={15} /> {language === 'TH' ? 'ตรวจสอบอีกครั้ง' : 'Re-check'}
+                          </button>
+                        ) : action ? (
+                          <button
+                            id={`queue-advance-${order.id}`}
+                            onClick={() => updateOrderStatus(order.id, action.to)}
+                            className={`${ACTION_BTN} ${action.cls}`}
+                          >
+                            {action.label} <ArrowRight size={15} />
+                          </button>
+                        ) : (
+                          <span className={`${ACTION_BTN} bg-zinc-50 text-zinc-400 cursor-default`}>
+                            <CheckCircle size={15} /> {language === 'TH' ? 'เสร็จสิ้น' : 'Done'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          )}
         </div>
 
         {/* ── Order Detail Panel ───────────────────────────────────────────── */}
@@ -457,24 +680,18 @@ export default function OrdersView({
               </button>
             </div>
 
-            {/* S2: Queue banner */}
-            <div className={`px-4 py-3 text-white flex items-center justify-between shrink-0 ${
-              selectedOrder.paymentStatus === 'Failed' ? 'bg-red-900' : 'bg-amber-950'
-            }`}>
+            {/* S2: Compact alert banner (failed) or queue banner (others) */}
+            <div className="px-4 py-3 text-white flex items-center justify-between shrink-0 bg-amber-950">
               <div>
                 <span className="font-sans text-[9px] text-[#EAD1A8] uppercase tracking-wider block font-medium">
-                  {selectedOrder.paymentStatus === 'Failed'
-                    ? (language === 'TH' ? 'ชำระเงินไม่สำเร็จ' : 'Payment Failed')
-                    : selectedOrder.status === 'Pending Payment'
-                      ? (language === 'TH' ? 'รอยืนยันการชำระเงิน' : 'Awaiting Payment Confirmation')
-                      : (language === 'TH' ? 'หมายเลขคิวทำกาแฟ' : 'Coffee Queue No.')}
+                  {selectedOrder.status === 'Pending Payment'
+                    ? (language === 'TH' ? 'รอยืนยันการชำระเงิน' : 'Awaiting Payment Confirmation')
+                    : (language === 'TH' ? 'หมายเลขคิวทำกาแฟ' : 'Coffee Queue No.')}
                 </span>
-                <span className="font-mono text-2xl font-black tracking-wide leading-none">
-                  {selectedOrder.status === 'Pending Payment' && selectedOrder.paymentStatus !== 'Failed'
-                    ? (language === 'TH' ? 'กำลังประมวลผล...' : 'Processing...')
-                    : selectedOrder.queueNo
-                      ? (language === 'TH' ? `คิว: Q-${selectedOrder.queueNo}` : `Q-${selectedOrder.queueNo}`)
-                      : '—'}
+                <span className="font-mono text-xl font-black tracking-wide leading-none">
+                  {selectedOrder.status === 'Pending Payment' || !selectedOrder.queueNo
+                    ? (language === 'TH' ? 'ยังไม่สร้างคิว' : 'No queue yet')
+                    : (language === 'TH' ? `คิว: Q-${selectedOrder.queueNo}` : `Q-${selectedOrder.queueNo}`)}
                 </span>
               </div>
               <button className="p-1 px-2 border border-white/20 hover:border-white/50 rounded flex items-center gap-1.5 text-[10px] font-sans font-semibold shrink-0">

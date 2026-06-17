@@ -266,6 +266,56 @@ export default function App() {
     return String(branchCounters[branch]).padStart(3, '0');
   };
 
+  // ─── Simulated store clock + payment auto-cancel ─────────────────────────────
+  const PAYMENT_TIMEOUT_MIN = 10;
+  const timeToMin = (t: string) => { const m = t.match(/(\d+):(\d+)/); return m ? +m[1] * 60 + +m[2] : 0; };
+  const clockBaseRef = useRef<number | null>(null);
+  const mountRealRef = useRef<number>(Date.now());
+  const [nowMin, setNowMin] = useState<number>(0);
+
+  // Set the baseline simulated "now" once orders are available (= newest order time + 3 min)
+  useEffect(() => {
+    if (clockBaseRef.current === null && orders.length) {
+      const maxT = Math.max(0, ...orders.map(o => timeToMin(o.time)));
+      clockBaseRef.current = maxT + 3;
+      setNowMin(maxT + 3);
+    }
+  }, [orders]);
+
+  // Advance the simulated clock with real time (1 simulated minute per real minute)
+  useEffect(() => {
+    const id = setInterval(() => {
+      if (clockBaseRef.current === null) return;
+      const elapsed = Math.floor((Date.now() - mountRealRef.current) / 60000);
+      setNowMin(clockBaseRef.current + elapsed);
+    }, 15000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Auto-cancel any order left unpaid past the 10-minute window
+  useEffect(() => {
+    if (clockBaseRef.current === null) return;
+    const stale = orders.filter(o => o.status === 'Pending Payment' && (nowMin - timeToMin(o.time)) >= PAYMENT_TIMEOUT_MIN);
+    if (stale.length === 0) return;
+    const stamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
+    setOrders(prev => prev.map(o =>
+      (o.status === 'Pending Payment' && (nowMin - timeToMin(o.time)) >= PAYMENT_TIMEOUT_MIN)
+        ? { ...o, status: 'Cancelled' as OrderStatus, queueNo: '', cancellationReason: 'Customer Did Not Pay' as const, cancellationNote: 'Payment timeout after 10 minutes', cancelledBy: 'System', cancelledAt: stamp }
+        : o
+    ));
+    setActivities(prev => [
+      ...stale.map(o => ({
+        id: `ACT-AUTOCANCEL-${o.id}`,
+        text: `Order Auto Cancelled — ${o.id}. Reason: Payment timeout after 10 minutes`,
+        time: stamp,
+        type: 'order' as const,
+        status: 'Alert' as const,
+      })),
+      ...prev,
+    ]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nowMin]);
+
   // ─── Auto-verification engine ────────────────────────────────────────────────
   // Tracks order IDs already queued for verification so the effect is idempotent.
   const verifiedRef = useRef<Set<string>>(new Set());
@@ -357,8 +407,21 @@ export default function App() {
           }
 
           let paymentStatus = order.paymentStatus;
-          if (newStatus === 'Paid' || newStatus === 'Preparing' || newStatus === 'Ready For Pickup' || newStatus === 'Completed' || newStatus === 'Queue Called') {
+          const isConfirmedState = newStatus === 'Paid' || newStatus === 'Preparing' || newStatus === 'Ready For Pickup' || newStatus === 'Completed' || newStatus === 'Queue Called';
+          if (isConfirmedState) {
             paymentStatus = 'Paid';
+          }
+
+          // Generate the branch-scoped queue number the moment payment is confirmed
+          // (never before). Continues the per-branch running sequence: 001, 002, 003…
+          let queueNo = order.queueNo;
+          if (isConfirmedState && !queueNo) {
+            const maxForBranch = baseOrders
+              .filter(o => o.branch === order.branch && o.queueNo)
+              .map(o => parseInt(o.queueNo, 10))
+              .filter(n => !isNaN(n))
+              .reduce((m, n) => Math.max(m, n), 0);
+            queueNo = String(maxForBranch + 1).padStart(3, '0');
           }
 
           // Build a copy of timeline tracking
@@ -382,6 +445,7 @@ export default function App() {
             ...order,
             status: newStatus,
             paymentStatus,
+            queueNo,
             timeline: updatedTimeline
           };
         }
@@ -610,6 +674,8 @@ export default function App() {
           {currentTab === 'Orders' && (
             <OrdersView
               orders={orders}
+              ingredients={ingredients}
+              nowMin={nowMin}
               updateOrderStatus={updateOrderStatus}
               cancelOrderWithReason={cancelOrderWithReason}
               updateRefundStatus={updateRefundStatus}

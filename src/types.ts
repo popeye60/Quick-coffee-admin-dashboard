@@ -8,6 +8,7 @@ export type Branch = 'Central Plaza' | 'Siam Square' | 'Mega Bangna' | 'The Mall
 export type OrderStatus = 'Pending Payment' | 'Paid' | 'Preparing' | 'Ready For Pickup' | 'Queue Called' | 'Completed' | 'Cancelled';
 
 export type CancellationReason =
+  | 'Customer Did Not Pay'
   | 'Customer Requested Cancellation'
   | 'Wrong Order Selected'
   | 'Out of Stock'

@@ -560,16 +560,29 @@ export default function DashboardView({
     return { points, summary };
   };
 
-  const analytics = getSalesAnalytics(salesTimeframe, salesBranch);
+  // Staff are locked to their assigned branch (selectedBranch is already the staff branch);
+  // Admin can freely pick the analytics branch.
+  const effectiveSalesBranch = roleMode === 'Staff' ? selectedBranch : salesBranch;
+  const analytics = getSalesAnalytics(salesTimeframe, effectiveSalesBranch);
   // Period qualifier shown on the analytics KPI cards
   const periodQualifier = salesTimeframe === 'Daily'
     ? (language === 'TH' ? 'วันนี้' : 'today')
     : salesTimeframe === 'Monthly'
       ? (language === 'TH' ? 'เดือนนี้' : 'this month')
       : (language === 'TH' ? 'ปีนี้' : 'this year');
+  // Period-over-period deltas (latest point vs the one before it) for the KPI cards
+  const pctChange = (cur: number, prev: number) => prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : 0;
+  const _aPts = analytics.points;
+  const _aLast = _aPts[_aPts.length - 1];
+  const _aPrev = _aPts[_aPts.length - 2] ?? _aLast;
+  const revenueDelta = pctChange(_aLast.revenue, _aPrev.revenue);
+  const ordersDelta = pctChange(_aLast.orders, _aPrev.orders);
+  const aovDelta = pctChange(
+    _aLast.orders > 0 ? _aLast.revenue / _aLast.orders : 0,
+    _aPrev.orders > 0 ? _aPrev.revenue / _aPrev.orders : 0,
+  );
   const revenueMax = Math.max(...analytics.points.map(p => p.revenue), 1);
-  const ordersMax = Math.max(...analytics.points.map(p => p.orders), 1);
-  // Build a "nice" axis (rounded ceiling + evenly-spaced ticks) for any max value
+  // Build a "nice" revenue axis (rounded ceiling + evenly-spaced ticks)
   const niceAxis = (maxVal: number, divs = 4) => {
     const rough = maxVal / divs;
     const pow = Math.pow(10, Math.floor(Math.log10(rough || 1)));
@@ -578,15 +591,7 @@ export default function DashboardView({
     const ticks = Array.from({ length: Math.round(max / step) + 1 }, (_, i) => i * step);
     return { max, ticks };
   };
-  const revAxis = niceAxis(revenueMax);   // left axis = revenue
-  const revDivs = revAxis.ticks.length - 1;
-  // Right axis = orders, forced to the SAME number of divisions so gridlines align
-  const ordAxis = (() => {
-    const rough = ordersMax / revDivs;
-    const pow = Math.pow(10, Math.floor(Math.log10(rough || 1)));
-    const step = [1, 2, 2.5, 5, 10].map(c => c * pow).find(c => c >= rough) ?? pow * 10;
-    return { max: step * revDivs, ticks: Array.from({ length: revDivs + 1 }, (_, i) => i * step) };
-  })();
+  const revAxis = niceAxis(revenueMax);
   const axisMax = revAxis.max;
   const yTicks = revAxis.ticks;
   const fmtAxis = (v: number) => v >= 1000 ? `${Math.round(v / 1000)}K` : `${v}`;
@@ -601,7 +606,13 @@ export default function DashboardView({
 
   // Compact campaign summary
   const activePromotionsCount = promotions.filter(p => p.status === 'Active').length;
-  const topActiveCoupons = coupons.filter(c => c.status === 'Active').slice(0, 3);
+
+  // Per-branch coupon redemption split (coupons are global; derive a deterministic branch share)
+  const BRANCH_COUPON_WEIGHT: Record<string, number> = {
+    'Central Plaza': 0.32, 'Siam Square': 0.26, 'Mega Bangna': 0.28, 'The Mall Korat': 0.14,
+  };
+  const branchCouponUsage = (usage: number, branch: string) =>
+    branch === 'All Branches' ? usage : Math.round(usage * (BRANCH_COUPON_WEIGHT[branch] ?? 0.25));
 
   // ── KPI card renderer helper ──────────────────────────────────────────────
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -655,20 +666,7 @@ export default function DashboardView({
         </div>
       </div>
 
-      {/* ── OPERATIONAL KPIs (3 cards) — Staff only; Admin focuses on business insight ── */}
-      {roleMode === 'Staff' && (
-        <div className="space-y-1.5">
-          <h4 className="font-sans font-bold text-[10px] text-[#8B6B4F] uppercase tracking-wider">
-            {language === 'TH' ? 'สถานะการดำเนินงาน' : 'Operational Status'}
-          </h4>
-          <div className="grid grid-cols-3 gap-3.5">
-            {(['stat-preparing', 'stat-ready', 'stat-low-stock'] as const)
-              .map(id => kpiCards.find(c => c.id === id))
-              .filter(Boolean)
-              .map(card => <React.Fragment key={card!.id}>{renderKpiCard(card!)}</React.Fragment>)}
-          </div>
-        </div>
-      )}
+      {/* Operational Status moved to the Orders page — Dashboard is an executive summary */}
 
       {/* ── SALES ANALYTICS ── */}
       <div className="p-5 bg-white border border-coffee-border rounded-2xl shadow-xs space-y-5">
@@ -705,120 +703,115 @@ export default function DashboardView({
               ))}
             </div>
 
-            {/* Branch filter */}
-            <select
-              id="sales-branch-filter"
-              value={salesBranch}
-              onChange={e => setSalesBranch(e.target.value)}
-              className="text-[11px] font-semibold py-1.5 px-2.5 bg-stone-50 border border-coffee-border rounded-lg text-zinc-600 focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
-            >
-              <option value="All Branches">{language === 'TH' ? 'ทุกสาขา' : 'All Branches'}</option>
-              <option value="Central Plaza">Central Plaza</option>
-              <option value="Siam Square">Siam Square</option>
-              <option value="Mega Bangna">Mega Bangna</option>
-              <option value="The Mall Korat">The Mall Korat</option>
-            </select>
+            {/* Branch filter — Admin can switch; Staff sees their assigned branch read-only */}
+            {roleMode === 'Admin' ? (
+              <select
+                id="sales-branch-filter"
+                value={salesBranch}
+                onChange={e => setSalesBranch(e.target.value)}
+                className="text-[11px] font-semibold py-1.5 px-2.5 bg-stone-50 border border-coffee-border rounded-lg text-zinc-600 focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              >
+                <option value="All Branches">{language === 'TH' ? 'ทุกสาขา' : 'All Branches'}</option>
+                <option value="Central Plaza">Central Plaza</option>
+                <option value="Siam Square">Siam Square</option>
+                <option value="Mega Bangna">Mega Bangna</option>
+                <option value="The Mall Korat">The Mall Korat</option>
+              </select>
+            ) : (
+              <span className="text-[11px] font-semibold py-1.5 px-2.5 bg-stone-100 border border-coffee-border rounded-lg text-zinc-600 flex items-center gap-1.5">
+                🔒 {language === 'TH' ? 'สาขา:' : 'Branch:'} {effectiveSalesBranch}
+              </span>
+            )}
           </div>
         </div>
 
-        {/* 2-column: chart (70%) | stacked KPIs (30%) */}
+        {/* 2-column: chart (70%) left on desktop | KPIs (30%) right; KPIs move to top on mobile.
+            No items-start → both columns stretch to equal height (chart = KPI stack). */}
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
 
-          {/* LEFT (70%): Revenue trend combo chart (bars = revenue, line = orders) */}
-          <div className="lg:col-span-7 flex flex-col">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-[9.5px] uppercase font-mono font-bold text-zinc-400">
+          {/* CHART (70%) — revenue-only modern bar chart (compact height) */}
+          <div className="lg:col-span-7 order-2 lg:order-1 flex flex-col rounded-2xl bg-[#F8F6F2] border border-[#EADBC8] p-3">
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-[9.5px] uppercase font-mono font-bold text-[#A67C52]">
                 {language === 'TH' ? 'แนวโน้มรายได้' : 'Revenue Trend'}
               </span>
-              <span className="text-[9.5px] font-mono text-zinc-400">
-                {salesBranch === 'All Branches' ? (language === 'TH' ? 'ทุกสาขา' : 'All Branches') : salesBranch}
+              <span className="text-[9.5px] font-mono text-[#A67C52]/70">
+                {effectiveSalesBranch === 'All Branches' ? (language === 'TH' ? 'ทุกสาขา' : 'All Branches') : effectiveSalesBranch}
               </span>
             </div>
 
             {(() => {
-              const W = 720, H = 400, padL = 50, padR = 48, padT = 24, padB = 32;
+              const W = 720, H = 248, padL = 52, padR = 20, padT = 14, padB = 28;
               const x0 = padL, x1 = W - padR, y0 = padT, y1 = H - padB;
               const plotW = x1 - x0, plotH = y1 - y0;
               const pts = analytics.points;
               const n = pts.length;
               const band = plotW / n;
-              const barW = Math.min(band * 0.5, 42);
+              const barW = Math.min(band * 0.42, 38); // narrower bars → more breathing room
               const cx = (i: number) => x0 + band * (i + 0.5);
-              const revY = (v: number) => y1 - (v / axisMax) * plotH;          // left scale = revenue
-              const ordY = (v: number) => y1 - (v / ordAxis.max) * plotH;       // right scale = orders
-              const linePath = pts.map((p, i) => `${i === 0 ? 'M' : 'L'} ${cx(i).toFixed(1)} ${ordY(p.orders).toFixed(1)}`).join(' ');
-
-              const REV = '#B88A5A', REV_ACTIVE = '#8C6846', ORD = '#2F7A5F';
+              const revY = (v: number) => y1 - (v / axisMax) * plotH;
+              const lastIdx = n - 1;
               const hovered = salesHoverIdx; // null until hover → no default tooltip
+
+              // Rounded-TOP-only bar path
+              const barPath = (x: number, y: number, w: number, h: number, r: number) => {
+                const rr = Math.min(r, w / 2, h);
+                return `M${x},${y + h} L${x},${y + rr} Q${x},${y} ${x + rr},${y} L${x + w - rr},${y} Q${x + w},${y} ${x + w},${y + rr} L${x + w},${y + h} Z`;
+              };
 
               // Tooltip geometry (only when hovering)
               let tip = null as null | { tx: number; ty: number; tp: typeof pts[0] };
+              const TIPW = 158, TIPH = 70;
               if (hovered !== null && pts[hovered]) {
                 const tp = pts[hovered];
-                const tipW = 152, tipH = 66;
-                let tx = cx(hovered) - tipW / 2;
-                tx = Math.max(x0, Math.min(tx, x1 - tipW));
-                let ty = Math.min(revY(tp.revenue), ordY(tp.orders)) - tipH - 12;
+                let tx = cx(hovered) - TIPW / 2;
+                tx = Math.max(x0, Math.min(tx, x1 - TIPW));
+                let ty = revY(tp.revenue) - TIPH - 12;
                 if (ty < y0) ty = y0 + 4;
                 tip = { tx, ty, tp };
               }
-              const TIPW = 152, TIPH = 66;
 
               return (
                 <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img">
-                  {/* Gridlines + dual Y labels (left=revenue brown, right=orders green) */}
-                  {yTicks.map((v, idx) => {
-                    const gy = revY(v);
-                    return (
-                      <line key={`grid-${v}`} x1={x0} y1={gy} x2={x1} y2={gy} stroke="#EFEAE4" strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                    );
-                  })}
+                  <defs>
+                    <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#D9B38C" />
+                      <stop offset="100%" stopColor="#A67C52" />
+                    </linearGradient>
+                    <linearGradient id="barGradActive" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#A67C52" />
+                      <stop offset="100%" stopColor="#8B5E3C" />
+                    </linearGradient>
+                  </defs>
+
+                  {/* Gridlines — muted ~50% */}
+                  {yTicks.map(v => (
+                    <line key={`grid-${v}`} x1={x0} y1={revY(v)} x2={x1} y2={revY(v)} stroke="#EADBC8" strokeWidth={1} strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
+                  ))}
                   {/* Left axis (revenue) labels */}
                   {yTicks.map(v => (
-                    <text key={`yl-${v}`} x={x0 - 8} y={revY(v) + 3} textAnchor="end" fontSize={11} fill={REV_ACTIVE} fontFamily="monospace">{fmtAxis(v)}</text>
+                    <text key={`yl-${v}`} x={x0 - 8} y={revY(v) + 3} textAnchor="end" fontSize={11} fill="#A67C52" fontFamily="monospace">{fmtAxis(v)}</text>
                   ))}
-                  {/* Right axis (orders) labels */}
-                  {ordAxis.ticks.map(v => (
-                    <text key={`yr-${v}`} x={x1 + 8} y={ordY(v) + 3} textAnchor="start" fontSize={11} fill={ORD} fontFamily="monospace">{fmtAxis(v)}</text>
-                  ))}
-                  {/* Axis unit titles */}
-                  <text x={x0 - 8} y={y0 - 9} textAnchor="start" fontSize={9.5} fill={REV_ACTIVE} fontWeight="bold" fontFamily="monospace">{language === 'TH' ? 'บาท' : 'THB'}</text>
-                  <text x={x1 + 8} y={y0 - 9} textAnchor="end" fontSize={9.5} fill={ORD} fontWeight="bold" fontFamily="monospace">{language === 'TH' ? 'ออเดอร์' : 'Orders'}</text>
+                  <text x={x0 - 8} y={y0 - 8} textAnchor="start" fontSize={9.5} fill="#8B5E3C" fontWeight="bold" fontFamily="monospace">{language === 'TH' ? 'บาท' : 'THB'}</text>
 
-                  {/* Revenue bars (dim the non-hovered ones once a hover is active) */}
+                  {/* Revenue bars — gradient, rounded top, latest highlighted darker */}
                   {pts.map((p, i) => {
-                    const active = hovered === i;
-                    const dim = hovered !== null && !active;
+                    const isActive = hovered === i || (hovered === null && i === lastIdx);
+                    const dim = hovered !== null && hovered !== i;
                     return (
-                      <rect
+                      <path
                         key={`bar-${i}`}
-                        x={cx(i) - barW / 2}
-                        y={revY(p.revenue)}
-                        width={barW}
-                        height={Math.max(y1 - revY(p.revenue), 1)}
-                        rx={4}
-                        fill={active ? REV_ACTIVE : REV}
-                        opacity={dim ? 0.4 : 1}
-                        className="transition-all"
+                        d={barPath(cx(i) - barW / 2, revY(p.revenue), barW, Math.max(y1 - revY(p.revenue), 1), 6)}
+                        fill={isActive ? 'url(#barGradActive)' : 'url(#barGrad)'}
+                        opacity={dim ? 0.45 : 1}
+                        className="transition-all duration-200"
                       />
-                    );
-                  })}
-
-                  {/* Orders trend line (green) */}
-                  <path d={linePath} fill="none" stroke={ORD} strokeWidth={2.5} strokeLinejoin="round" strokeLinecap="round" opacity={hovered !== null ? 0.85 : 1} vectorEffect="non-scaling-stroke" />
-                  {pts.map((p, i) => {
-                    const active = hovered === i;
-                    const dim = hovered !== null && !active;
-                    return active ? (
-                      <circle key={`dot-${i}`} cx={cx(i)} cy={ordY(p.orders)} r={7} fill="#FFFFFF" stroke={ORD} strokeWidth={3} vectorEffect="non-scaling-stroke" />
-                    ) : (
-                      <circle key={`dot-${i}`} cx={cx(i)} cy={ordY(p.orders)} r={3} fill={ORD} opacity={dim ? 0.35 : 1} />
                     );
                   })}
 
                   {/* X-axis labels */}
                   {pts.map((p, i) => (
-                    <text key={`xl-${i}`} x={cx(i)} y={y1 + 20} textAnchor="middle" fontSize={11} fill={hovered === i ? REV_ACTIVE : '#9CA3AF'} fontWeight={hovered === i ? 'bold' : 'normal'} fontFamily="monospace">{p.label}</text>
+                    <text key={`xl-${i}`} x={cx(i)} y={y1 + 20} textAnchor="middle" fontSize={11} fill={hovered === i ? '#8B5E3C' : '#A67C52'} fontWeight={hovered === i ? 'bold' : 'normal'} fontFamily="monospace">{p.label}</text>
                   ))}
 
                   {/* Hover capture columns */}
@@ -839,146 +832,80 @@ export default function DashboardView({
                   {/* Tooltip — only on hover */}
                   {tip && (
                     <g pointerEvents="none">
-                      <rect x={tip.tx} y={tip.ty} width={TIPW} height={TIPH} rx={8} fill="#2E2A25" />
-                      <text x={tip.tx + 12} y={tip.ty + 19} fontSize={9.5} fill="#D9C9BC" fontFamily="sans-serif">{tip.tp.fullLabel}</text>
-                      <circle cx={tip.tx + 15} cy={tip.ty + 34} r={3} fill={REV} />
-                      <text x={tip.tx + 24} y={tip.ty + 38} fontSize={9.5} fill="#A9988A" fontFamily="sans-serif">{language === 'TH' ? 'รายได้' : 'Revenue'}</text>
-                      <text x={tip.tx + TIPW - 12} y={tip.ty + 38} textAnchor="end" fontSize={10.5} fill="#FFFFFF" fontWeight="bold" fontFamily="monospace">{formatCurrency(tip.tp.revenue)}</text>
-                      <circle cx={tip.tx + 15} cy={tip.ty + 51} r={3} fill={ORD} />
-                      <text x={tip.tx + 24} y={tip.ty + 55} fontSize={9.5} fill="#A9988A" fontFamily="sans-serif">{language === 'TH' ? 'ออเดอร์' : 'Orders'}</text>
-                      <text x={tip.tx + TIPW - 12} y={tip.ty + 55} textAnchor="end" fontSize={10.5} fill="#FFFFFF" fontWeight="bold" fontFamily="monospace">{tip.tp.orders.toLocaleString()}</text>
+                      <rect x={tip.tx} y={tip.ty} width={TIPW} height={TIPH} rx={9} fill="#3A2A1E" />
+                      <text x={tip.tx + 13} y={tip.ty + 20} fontSize={9.5} fill="#D9B38C" fontFamily="sans-serif">{tip.tp.fullLabel}</text>
+                      <text x={tip.tx + 13} y={tip.ty + 41} fontSize={9.5} fill="#EADBC8" fontFamily="sans-serif">{language === 'TH' ? 'รายได้' : 'Revenue'}</text>
+                      <text x={tip.tx + TIPW - 13} y={tip.ty + 42} textAnchor="end" fontSize={12} fill="#FFFFFF" fontWeight="bold" fontFamily="monospace">{formatCurrency(tip.tp.revenue)}</text>
+                      <text x={tip.tx + 13} y={tip.ty + 58} fontSize={9} fill="#B8A48E" fontFamily="sans-serif">{language === 'TH' ? 'จำนวนออเดอร์' : 'Orders'}</text>
+                      <text x={tip.tx + TIPW - 13} y={tip.ty + 58} textAnchor="end" fontSize={9.5} fill="#D9B38C" fontFamily="monospace">{tip.tp.orders.toLocaleString()}</text>
                     </g>
                   )}
                 </svg>
               );
             })()}
 
-            {/* Legend — Revenue = bar swatch (brown), Orders = line+dot (green) */}
-            <div className="flex items-center justify-center gap-6 mt-3">
-              <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-600">
-                <span className="w-3 h-3 rounded-sm bg-[#B88A5A] inline-block" />
-                {language === 'TH' ? 'รายได้ (บาท)' : 'Revenue (THB)'}
-              </span>
-              <span className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-600">
-                <svg width="20" height="10" viewBox="0 0 20 10" className="inline-block">
-                  <line x1="1" y1="5" x2="19" y2="5" stroke="#2F7A5F" strokeWidth="2.5" strokeLinecap="round" />
-                  <circle cx="10" cy="5" r="3.2" fill="#FFFFFF" stroke="#2F7A5F" strokeWidth="2" />
-                </svg>
-                {language === 'TH' ? 'จำนวนออเดอร์' : 'Orders'}
-              </span>
+            {/* Legend — Revenue only, snug under the chart */}
+            <div className="flex items-center justify-center gap-1.5 mt-1">
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'linear-gradient(180deg,#D9B38C,#A67C52)' }} />
+              <span className="text-[10px] font-mono text-[#8B5E3C]">{language === 'TH' ? 'รายได้ (บาท)' : 'Revenue (THB)'}</span>
             </div>
           </div>
 
-          {/* RIGHT (30%): KPI cards stacked vertically — reflect the SELECTED PERIOD (driven by the filters above, not today's operational data) */}
-          <div className="lg:col-span-3 flex flex-col gap-3">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[8.5px] font-bold uppercase tracking-wider text-[#8B6B4F] font-mono">
-                {language === 'TH' ? 'ตามช่วงเวลาที่เลือก' : 'Selected period'}
-              </span>
-              <span className="text-[8.5px] font-mono text-zinc-400">
-                · {salesTimeframe === 'Daily' ? (language === 'TH' ? 'รายวัน' : 'Daily') : salesTimeframe === 'Monthly' ? (language === 'TH' ? 'รายเดือน' : 'Monthly') : (language === 'TH' ? 'รายปี' : 'Yearly')}
-              </span>
-            </div>
-            <div className="flex-1 p-4 bg-emerald-50/50 border border-emerald-100 rounded-xl flex flex-col justify-center">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <DollarSign size={14} className="text-emerald-600 shrink-0" />
-                <span className="text-[10px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'รายได้รวม' : 'Total Revenue'}</span>
-              </div>
-              <strong className="text-2xl text-emerald-800 font-black font-mono leading-none">{formatCurrency(analytics.summary.revenue)}</strong>
-              <span className="text-[8.5px] text-zinc-400 font-mono mt-1">({periodQualifier})</span>
-            </div>
-            <div className="flex-1 p-4 border rounded-xl bg-stone-50/40 flex flex-col justify-center">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <ShoppingBag size={14} className="text-[#8B6B4F] shrink-0" />
-                <span className="text-[10px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'จำนวนคำสั่งซื้อ' : 'Total Orders'}</span>
-              </div>
-              <strong className="text-2xl text-coffee font-black font-mono leading-none">{analytics.summary.orders.toLocaleString()}</strong>
-              <span className="text-[8.5px] text-zinc-400 font-mono mt-1">({periodQualifier})</span>
-            </div>
-            <div className="flex-1 p-4 border rounded-xl bg-stone-50/40 flex flex-col justify-center">
-              <div className="flex items-center gap-1.5 mb-1.5">
-                <TrendingUp size={14} className="text-[#8B6B4F] shrink-0" />
-                <span className="text-[10px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'มูลค่าเฉลี่ยต่อออเดอร์' : 'Avg Order Value'}</span>
-              </div>
-              <strong className="text-2xl text-[#8B6B4F] font-black font-mono leading-none">{formatCurrency(analytics.summary.avgValue)}</strong>
-            </div>
+          {/* KPI CARDS (30%) — right on desktop, top on mobile */}
+          <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-3">
+            {(() => {
+              const DeltaPill = ({ delta }: { delta: number }) => {
+                const up = delta >= 0;
+                return (
+                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold font-mono" style={{ color: up ? '#D97706' : '#DC2626' }}>
+                    {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
+                    {up ? '+' : ''}{delta}%
+                  </span>
+                );
+              };
+              const cards = [
+                {
+                  key: 'rev', label: language === 'TH' ? 'รายได้รวม' : 'Total Revenue',
+                  value: formatCurrency(analytics.summary.revenue), delta: revenueDelta,
+                  icon: <DollarSign size={15} className="text-[#8B5E3C]" />,
+                  bg: 'bg-[#EADBC8]/60 border-[#D9B38C]', valueCls: 'text-3xl text-[#5E3D26]',
+                },
+                {
+                  key: 'ord', label: language === 'TH' ? 'จำนวนออเดอร์' : 'Total Orders',
+                  value: analytics.summary.orders.toLocaleString(), delta: ordersDelta,
+                  icon: <ShoppingBag size={15} className="text-[#A67C52]" />,
+                  bg: 'bg-[#F8F6F2] border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
+                },
+                {
+                  key: 'aov', label: language === 'TH' ? 'ยอดขายเฉลี่ยต่อบิล' : 'Avg Order Value',
+                  value: formatCurrency(analytics.summary.avgValue), delta: aovDelta,
+                  icon: <TrendingUp size={15} className="text-[#A67C52]" />,
+                  bg: 'bg-white border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
+                },
+              ];
+              return cards.map(c => (
+                <div key={c.key} className={`flex-1 p-4 border rounded-xl flex flex-col justify-center ${c.bg} shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-1.5">
+                      <span className="p-1 rounded-md bg-white/70 border border-[#EADBC8]">{c.icon}</span>
+                      <span className="text-[10px] uppercase font-bold text-[#A67C52] font-mono tracking-tight">{c.label}</span>
+                    </div>
+                    <DeltaPill delta={c.delta} />
+                  </div>
+                  <strong className={`font-black font-mono leading-none ${c.valueCls}`}>{c.value}</strong>
+                  <span className="text-[8.5px] text-[#A67C52]/70 font-mono mt-1.5">{language === 'TH' ? `(${periodQualifier}) · เทียบช่วงก่อนหน้า` : `(${periodQualifier}) · vs previous`}</span>
+                </div>
+              ));
+            })()}
           </div>
 
         </div>
       </div>
 
-      {/* ── RECENT ORDERS (latest 5) ── */}
-      <div className="p-6 bg-white border border-coffee-border rounded-2xl shadow-xs">
-        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
-          <div>
-            <h3 className="font-sans font-bold text-sm text-coffee">{language === 'TH' ? 'คำสั่งซื้อล่าสุด' : 'Recent Orders'}</h3>
-            <p className="font-sans text-xs text-coffee-muted">{language === 'TH' ? 'แสดง 5 รายการล่าสุด' : 'Showing latest 5 orders'}</p>
-          </div>
-          <button
-            id="dash-nav-orders-btn-sub"
-            onClick={() => onNavigateToTab('Orders')}
-            className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg font-sans shadow-xs transition-colors flex items-center gap-1.5 self-start sm:self-auto"
-          >
-            {language === 'TH' ? 'ดูรายการทั้งหมด' : 'View All Orders'} <TrendingUp size={12} />
-          </button>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs border-collapse font-sans">
-            <thead>
-              <tr className="border-b border-coffee-border bg-stone-50/50">
-                <th className="py-2.5 px-3 font-sans text-[11px] font-bold text-coffee-muted uppercase tracking-wider">{language === 'TH' ? 'คิว' : 'Queue'}</th>
-                <th className="py-2.5 px-3 font-sans text-[11px] font-bold text-coffee-muted uppercase tracking-wider">{language === 'TH' ? 'ชื่อลูกค้า' : 'Customer'}</th>
-                <th className="py-2.5 px-3 font-sans text-[11px] font-bold text-coffee-muted uppercase tracking-wider">{language === 'TH' ? 'สาขา' : 'Branch'}</th>
-                <th className="py-2.5 px-3 font-sans text-[11px] font-bold text-coffee-muted uppercase tracking-wider">{language === 'TH' ? 'สถานะ' : 'Status'}</th>
-                <th className="py-2.5 px-3 font-mono text-[11px] font-bold text-coffee-muted uppercase text-right shrink-0">{language === 'TH' ? 'ยอดสุทธิ' : 'Amount'}</th>
-                <th className="py-2.5 px-3 font-sans text-[11px] font-bold text-coffee-muted uppercase tracking-wider text-center">{language === 'TH' ? 'การดำเนินงาน' : 'Action'}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-100">
-              {branchFilteredOrders.slice(0, 5).map((order) => (
-                <tr key={order.id} className="hover:bg-[#FDF1E6]/10 cursor-pointer transition-colors" onClick={() => onSelectOrder(order.id)}>
-                  <td className="py-3 px-3">
-                    {order.queueNo
-                      ? <span className="font-mono text-xs font-black text-[#8B6B4F]">Q-{order.queueNo}</span>
-                      : <span className="font-mono text-xs text-zinc-400">—</span>
-                    }
-                    <div className="font-mono text-[9px] text-zinc-400 mt-0.5">{order.id}</div>
-                  </td>
-                  <td className="py-3 px-3">
-                    <div className="font-bold text-xs text-zinc-800">{order.customerName}</div>
-                    <div className="font-mono text-[9px] text-zinc-400 leading-none mt-0.5">{order.customerPhone}</div>
-                  </td>
-                  <td className="py-3 px-3 font-medium text-zinc-500">{order.branch}</td>
-                  <td className="py-3 px-3">
-                    <span className={`inline-block px-2.5 py-0.5 rounded text-[10px] font-bold ${
-                      order.status === 'Completed' ? 'bg-zinc-100 text-zinc-600' :
-                      order.status === 'Preparing' ? 'bg-sky-50 text-sky-700' :
-                      order.status === 'Ready For Pickup' ? 'bg-green-50 text-green-800 font-black animate-pulse' :
-                      order.status === 'Cancelled' ? 'bg-rose-50 text-rose-650' :
-                      'bg-amber-50 text-amber-800 font-bold'
-                    }`}>
-                      {order.status}
-                    </span>
-                  </td>
-                  <td className="py-3 px-3 font-mono font-bold text-coffee-accent text-right whitespace-nowrap">{formatCurrency(order.amount)}</td>
-                  <td className="py-3 px-3 text-center" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={() => onSelectOrder(order.id)}
-                      className="px-2.5 py-1 bg-stone-100 hover:bg-[#8B6B4F] hover:text-white rounded text-[10.5px] font-bold transition-all text-zinc-500"
-                    >
-                      {language === 'TH' ? 'ตรวจสอบ' : 'Inspect'}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      {/* Recent Orders removed — view them on the Orders page. Dashboard is an executive summary. */}
 
-      {/* ── ROW 4: CRITICAL INVENTORY SUMMARY | CAMPAIGN SUMMARY ── */}
-      {roleMode === 'Admin' ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+      {/* ── ROW: CRITICAL INVENTORY | CAMPAIGN SUMMARY (both roles, 50/50, stacks on mobile) ── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
 
           {/* Critical Inventory Summary (compact, read-only) */}
           <div className="p-5 bg-white border border-coffee-border rounded-2xl shadow-xs flex flex-col">
@@ -1032,13 +959,15 @@ export default function DashboardView({
               </div>
             )}
 
-            <button
-              id="dash-nav-stock-btn"
-              onClick={() => onNavigateToTab('Stock Management')}
-              className="mt-4 w-full py-2 border border-coffee-border hover:bg-stone-50 text-coffee text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              {language === 'TH' ? 'ดูทั้งหมด' : 'View All'} <ChevronRight size={13} />
-            </button>
+            {inventoryAlertItems.length > 3 && (
+              <button
+                id="dash-nav-stock-btn"
+                onClick={() => onNavigateToTab('Stock Management')}
+                className="mt-4 w-full py-2 border border-coffee-border hover:bg-stone-50 text-coffee text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                {language === 'TH' ? `ดูทั้งหมด (${inventoryAlertItems.length})` : `View All (${inventoryAlertItems.length})`} <ChevronRight size={13} />
+              </button>
+            )}
           </div>
 
           {/* Campaign & Coupon Summary (compact) */}
@@ -1072,29 +1001,38 @@ export default function DashboardView({
               </div>
             </div>
 
-            {topActiveCoupons.length === 0 ? (
-              <div className="flex-1 flex items-center justify-center p-4 text-center">
-                <p className="text-xs text-stone-400 font-medium">{language === 'TH' ? 'ไม่มีคูปองที่ใช้งาน' : 'No active coupons'}</p>
-              </div>
-            ) : (
-              <div className="space-y-3 flex-1">
-                <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'ประสิทธิภาพแคมเปญ' : 'Campaign Performance'}</p>
-                {topActiveCoupons.map(coupon => {
-                  const percent = Math.min(100, Math.round((coupon.usageCount / coupon.limitGlobal) * 100));
-                  return (
-                    <div key={coupon.code} className="space-y-1.5">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono font-bold bg-[#FDF1E6] text-coffee px-2 py-0.5 rounded text-[10px] truncate">{coupon.code}</span>
-                        <span className="text-[11px] text-zinc-600 font-mono font-bold shrink-0 tabular-nums">{percent}%</span>
+            {(() => {
+              const topUsed = coupons
+                .filter(c => c.status === 'Active')
+                .map(c => ({ code: c.code, discountType: c.discountType, discountValue: c.discountValue, uses: branchCouponUsage(c.usageCount, selectedBranch) }))
+                .sort((a, b) => b.uses - a.uses)
+                .slice(0, 3);
+              const maxUses = Math.max(...topUsed.map(c => c.uses), 1);
+              if (topUsed.length === 0) return (
+                <div className="flex-1 flex items-center justify-center p-4 text-center">
+                  <p className="text-xs text-stone-400 font-medium">{language === 'TH' ? 'ไม่มีคูปองที่ใช้งาน' : 'No active coupons'}</p>
+                </div>
+              );
+              return (
+                <div className="space-y-3 flex-1">
+                  <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'แคมเปญที่ถูกใช้มากที่สุด (Top 3)' : 'Top 3 Campaigns'}</p>
+                  {topUsed.map(c => {
+                    const percent = Math.round((c.uses / maxUses) * 100);
+                    return (
+                      <div key={c.code} className="space-y-1.5">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-mono font-bold bg-[#FDF1E6] text-coffee px-2 py-0.5 rounded text-[10px] truncate">{c.code}</span>
+                          <span className="text-[11px] text-[#8B6B4F] font-mono font-bold shrink-0 tabular-nums">{language === 'TH' ? `${c.uses} ครั้ง` : `${c.uses} uses`}</span>
+                        </div>
+                        <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
+                          <div className="h-full rounded-full bg-[#8B6B4F] transition-all duration-500" style={{ width: `${percent}%` }} />
+                        </div>
                       </div>
-                      <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                        <div className="h-full rounded-full bg-[#8B6B4F] transition-all duration-500" style={{ width: `${percent}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
+                    );
+                  })}
+                </div>
+              );
+            })()}
 
             <button
               id="dash-nav-coupons-btn"
@@ -1105,115 +1043,7 @@ export default function DashboardView({
             </button>
           </div>
 
-        </div>
-      ) : (
-        <>
-          {/* ── STAFF: operational inventory rows (restock) ── */}
-          <div className="p-5 bg-white border border-coffee-border rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-sans font-bold text-sm text-coffee">
-                  {language === 'TH' ? 'แจ้งเตือนวัตถุดิบใกล้วิกฤต' : 'Inventory Alerts'}
-                </h3>
-                <p className="font-sans text-xs text-coffee-muted">
-                  {language === 'TH' ? 'วัตถุดิบที่ต่ำกว่ามาตรฐานความปลอดภัย' : 'Ingredients that have breached safety reserve levels'}
-                </p>
-              </div>
-              <span className="px-2.5 py-1 rounded-full text-[10px] bg-amber-50 text-amber-800 font-bold font-mono">
-                {lowStockCount} {language === 'TH' ? 'รายการ' : 'items'}
-              </span>
-            </div>
-
-            {inventoryAlertItems.length === 0 ? (
-              <div className="p-8 text-center bg-stone-50/50 rounded-xl border border-dashed border-stone-200">
-                <CheckCircle className="mx-auto text-zinc-400 mb-2" size={20} />
-                <p className="text-xs font-sans text-stone-400 font-medium">
-                  {language === 'TH' ? 'วัตถุดิบทุกชนิดอยู่ในระดับปกติ' : 'All stock levels are within safe range.'}
-                </p>
-              </div>
-            ) : (
-              <div className="divide-y divide-stone-100 border rounded-xl overflow-hidden shadow-xs bg-white">
-                {inventoryAlertItems.map(item => (
-                  <div key={item.id} className="p-3 flex items-center justify-between gap-4 bg-stone-50/20 hover:bg-stone-50 transition-colors">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2">
-                        <strong className="text-xs font-sans font-bold text-zinc-800">{item.name}</strong>
-                        <span className={`text-[8.5px] font-mono px-1.5 py-0.5 rounded font-bold uppercase ${
-                          item.status === 'Out of Stock' ? 'bg-red-50 text-red-700' : 'bg-orange-50 text-orange-700'
-                        }`}>
-                          {item.status === 'Out of Stock' ? (language === 'TH' ? 'หมดเกลี้ยง' : 'Empty') : (language === 'TH' ? 'วิกฤต' : 'Low')}
-                        </span>
-                      </div>
-                      <span className="text-[10px] text-zinc-400 block mt-0.5 font-sans leading-none">{item.branch}</span>
-                    </div>
-                    <div className="flex items-center gap-3 shrink-0">
-                      <div className="text-right">
-                        <span className="font-mono text-xs font-bold text-zinc-700 block">{item.stockLevel}% left</span>
-                        <div className="w-16 bg-zinc-200 h-1.5 rounded-full overflow-hidden mt-0.5">
-                          <div className="bg-red-500 h-full rounded-full" style={{ width: `${item.stockLevel}%` }} />
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleQuickRestock(item.id, item.name)}
-                        className="px-3 py-1 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-[10px] font-sans font-bold rounded-md shadow-xs transition-colors"
-                      >
-                        {language === 'TH' ? 'รีสต็อกด่วน' : 'Restock 100%'}
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* ── STAFF: campaign summary ── */}
-          <div className="p-5 bg-white border border-coffee-border rounded-2xl shadow-xs">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="font-sans font-bold text-sm text-coffee">
-                  {language === 'TH' ? 'สรุปคูปองและแคมเปญ' : 'Coupon & Campaign Summary'}
-                </h3>
-                <p className="font-sans text-xs text-coffee-muted">
-                  {language === 'TH' ? 'สถานะการใช้งานคูปองส่วนลดในระบบ' : 'Active promotion coupon redemption tracking'}
-                </p>
-              </div>
-              <Ticket size={16} className="text-indigo-600 shrink-0" />
-            </div>
-            <div className="space-y-4">
-              {coupons.slice(0, 5).map((coupon) => {
-                const percent = Math.min(100, Math.round((coupon.usageCount / coupon.limitGlobal) * 100));
-                const barColor = coupon.status === 'Active' ? 'bg-[#8B6B4F]' : 'bg-stone-200';
-                return (
-                  <div key={coupon.code} className="space-y-1.5 border-b pb-2.5 last:border-0 last:pb-0">
-                    <div className="flex items-center justify-between text-xs">
-                      <div className="flex items-center gap-1.5">
-                        <span className="font-mono font-bold bg-[#FDF1E6] truncate text-coffee px-2 py-0.5 rounded text-[10.5px]">
-                          {coupon.code}
-                        </span>
-                        <span className="text-[10px] text-zinc-400 font-mono font-semibold">
-                          ({coupon.discountType === 'percentage' ? `${coupon.discountValue}%` : `฿${coupon.discountValue}`})
-                        </span>
-                      </div>
-                      <span className={`text-[10.5px] font-bold ${coupon.status === 'Active' ? 'text-emerald-700' : 'text-stone-400'}`}>
-                        {coupon.status === 'Active'
-                          ? (language === 'TH' ? 'เปิดใช้งาน' : 'Active')
-                          : (language === 'TH' ? 'ปิดใช้งาน' : 'Inactive')}
-                      </span>
-                    </div>
-                    <div className="flex justify-between items-center text-[10.5px] text-zinc-400 mt-1">
-                      <span>Redeemed {coupon.usageCount} / {coupon.limitGlobal}</span>
-                      <span className="font-mono font-semibold text-zinc-600">{percent}%</span>
-                    </div>
-                    <div className="w-full bg-stone-100 h-1.5 rounded-full overflow-hidden">
-                      <div className={`h-full rounded-full ${barColor}`} style={{ width: `${percent}%` }} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        </>
-      )}
+      </div>
 
       {/* 3. MODALS CORNER (Fully functional add/create modals) */}
       
