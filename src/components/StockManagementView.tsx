@@ -1,4 +1,4 @@
-import { useState, Dispatch, SetStateAction } from 'react';
+import { useEffect, useState, Dispatch, SetStateAction } from 'react';
 import { Ingredient, Branch } from '../types';
 import { AlertTriangle, CheckCircle, ClipboardCheck, ClipboardList, X, History, Clock, Sunrise, Sunset, PackagePlus, Warehouse, AlertCircle, CalendarDays, Download } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
@@ -12,9 +12,22 @@ interface StockManagementViewProps {
   staffAssignedBranch: string;
   isLoading?: boolean;
   error?: string | null;
+  onGateChange?: (status: StockGateStatus) => void;
 }
 
 type CountRound = 'open' | 'close';
+export interface StockGateStatus {
+  branch: string;
+  total: number;
+  openingChecked: number;
+  closingChecked: number;
+  openingComplete: boolean;
+  closingComplete: boolean;
+  openingConfirmed: boolean;
+  closingConfirmed: boolean;
+  missingOpening: string[];
+  missingClosing: string[];
+}
 interface CheckRecord { round: CountRound; by: string; at: string; qty: number; }
 interface RefillRecord { qty: number; by: string; at: string; }
 // Per-item daily ledger: opening = balance before today's first action; refilled = total added today
@@ -115,8 +128,8 @@ const TODAY = '2026-05-25';
 const YESTERDAY = '2026-05-24';
 
 const INITIAL_CHECKS: Record<string, CheckRecord> = {
-  'STK-001': { round: 'open', by: 'Siri S.', at: '08:15, Today', qty: 8.5 },
-  'STK-002': { round: 'open', by: 'Siri S.', at: '08:18, Today', qty: 12 },
+  'open:STK-001': { round: 'open', by: 'Siri S.', at: '08:15, Today', qty: 8.5 },
+  'open:STK-002': { round: 'open', by: 'Siri S.', at: '08:18, Today', qty: 12 },
 };
 // Per-item daily ledger seeded for the two pre-counted items
 const INITIAL_DAILY: Record<string, DailyEntry> = {
@@ -132,13 +145,14 @@ const INITIAL_HISTORY: MovementLog[] = [
 ];
 
 export default function StockManagementView({
-  ingredients, setIngredients, selectedBranch, setSelectedBranch, roleMode, staffAssignedBranch, isLoading = false, error = null,
+  ingredients, setIngredients, selectedBranch, setSelectedBranch, roleMode, staffAssignedBranch, isLoading = false, error = null, onGateChange,
 }: StockManagementViewProps) {
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked' | 'unchecked' | StockState>('all');
   const [selectedId, setSelectedId]     = useState<string | null>(null);
   const [checkRound, setCheckRound]     = useState<CountRound>('open');
   const [checks, setChecks]             = useState<Record<string, CheckRecord>>(INITIAL_CHECKS);
+  const [confirmedRounds, setConfirmedRounds] = useState<Record<string, boolean>>({});
   const [refills, setRefills]           = useState<Record<string, RefillRecord>>({});
   const [dailyLog, setDailyLog]         = useState<Record<string, DailyEntry>>(INITIAL_DAILY);
   const [selectedDate, setSelectedDate] = useState<string>(TODAY);
@@ -167,18 +181,21 @@ export default function StockManagementView({
   const loadError = error || (!hasInventoryList ? t('ข้อมูลสต็อกไม่พร้อมใช้งาน', 'Inventory data is unavailable.') : null);
   const isToday = selectedDate === TODAY;
   const canEdit = isStaff && isToday; // staff edit only the current day; past dates are read-only
+  const checkKey = (round: CountRound, id: string) => `${round}:${id}`;
+  const roundCheck = (round: CountRound, id: string) => checks[checkKey(round, id)] ?? null;
 
   // Per-row daily figures. For TODAY we use the live ledger; for past dates we reconstruct
   // the day's figures from the movement history (counts + refills recorded that date).
   const rowMetrics = (ing: Ingredient) => {
     if (isToday) {
       const log = dailyLog[ing.id];
+      const check = roundCheck(checkRound, ing.id);
       return {
         previous: log ? log.opening : asNumber(ing.quantity),
         refilled: log ? log.refilled : 0,
         current: asNumber(ing.quantity),
-        counted: Boolean(checks[ing.id]),
-        check: checks[ing.id] ?? null,
+        counted: Boolean(check),
+        check,
       };
     }
     const dayLogs = history.filter(h => h.date === selectedDate && h.branch === ing.branch && (h.itemId === ing.id || h.itemName === ing.name));
@@ -222,15 +239,52 @@ export default function StockManagementView({
   };
 
   const scoped = safeIngredients.filter(i => activeBranch === 'All Branches' || i.branch === activeBranch);
+  const requiredItems = scoped;
+  const openingChecked = requiredItems.filter(i => roundCheck('open', i.id)).length;
+  const closingChecked = requiredItems.filter(i => roundCheck('close', i.id)).length;
+  const missingOpening = requiredItems.filter(i => !roundCheck('open', i.id)).map(i => i.name);
+  const missingClosing = requiredItems.filter(i => !roundCheck('close', i.id)).map(i => i.name);
+  const openingComplete = requiredItems.length > 0 && openingChecked === requiredItems.length;
+  const closingComplete = requiredItems.length > 0 && closingChecked === requiredItems.length;
+  const openingConfirmed = Boolean(confirmedRounds[`open:${activeBranch}:${TODAY}`]);
+  const closingConfirmed = Boolean(confirmedRounds[`close:${activeBranch}:${TODAY}`]);
+  const activeChecked = checkRound === 'open' ? openingChecked : closingChecked;
+  const activeMissing = checkRound === 'open' ? missingOpening : missingClosing;
+  const activeComplete = checkRound === 'open' ? openingComplete : closingComplete;
+  const activeConfirmed = checkRound === 'open' ? openingConfirmed : closingConfirmed;
+  const currentHour = new Date().getHours();
+  const isOperatingHours = currentHour >= 7 && currentHour < 22;
+  const canRefillStock = canEdit && checkRound === 'open' && isOperatingHours;
+  const refillLocked = canEdit && !canRefillStock;
+  const refillLockedMessage = checkRound === 'close'
+    ? t('ปิดการเติมสต็อกระหว่างรอบปิดร้าน', 'Refill is disabled during closing stock check.')
+    : t('เติมสต็อกได้เฉพาะช่วงเปิดร้านและเวลาให้บริการเท่านั้น', 'Refill is allowed only during Opening Shift and store operating hours.');
+
+  useEffect(() => {
+    onGateChange?.({
+      branch: activeBranch,
+      total: requiredItems.length,
+      openingChecked,
+      closingChecked,
+      openingComplete,
+      closingComplete,
+      openingConfirmed,
+      closingConfirmed,
+      missingOpening,
+      missingClosing,
+    });
+  }, [activeBranch, requiredItems.length, openingChecked, closingChecked, openingComplete, closingComplete, openingConfirmed, closingConfirmed, missingOpening.join('|'), missingClosing.join('|'), onGateChange]);
+
   const filtered = scoped.filter(ing => {
-    if (statusFilter === 'checked' && !checks[ing.id]) return false;
-    if (statusFilter === 'unchecked' && checks[ing.id]) return false;
+    const currentRoundChecked = Boolean(roundCheck(checkRound, ing.id));
+    if (statusFilter === 'checked' && !currentRoundChecked) return false;
+    if (statusFilter === 'unchecked' && currentRoundChecked) return false;
     if ((statusFilter === 'normal' || statusFilter === 'low' || statusFilter === 'critical') && classify(ing) !== statusFilter) return false;
     if (searchTerm && !ing.name.toLowerCase().includes(searchTerm.toLowerCase()) && !ing.type.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
 
-  const kpiChecked   = scoped.filter(i => checks[i.id]).length;
+  const kpiChecked   = scoped.filter(i => roundCheck(checkRound, i.id)).length;
   const kpiUnchecked = scoped.length - kpiChecked;
   const kpiLow       = scoped.filter(i => classify(i) === 'low').length;
   const kpiCritical  = scoped.filter(i => classify(i) === 'critical').length;
@@ -263,7 +317,7 @@ export default function StockManagementView({
     const at = stamp();
     setDailyLog(prev => prev[id] ? prev : { ...prev, [id]: { opening: asNumber(item.quantity), refilled: 0 } });
     setIngredients(prev => prev.map(i => i.id === id ? { ...i, quantity: qty, status: statusFromQty({ quantity: qty, lowThreshold: i.lowThreshold }) } : i));
-    setChecks(prev => ({ ...prev, [id]: { round: checkRound, by: currentUser, at, qty } }));
+    setChecks(prev => ({ ...prev, [checkKey(checkRound, id)]: { round: checkRound, by: currentUser, at, qty } }));
     setHistory(prev => [{ id: `CNT-${Date.now()}`, kind: 'count', itemName: item.name, itemId: id, qty, unit: item.unit, round: checkRound, user: currentUser, timestamp: at, branch: item.branch, date: TODAY }, ...prev].slice(0, 40));
   };
 
@@ -271,6 +325,7 @@ export default function StockManagementView({
   const submitRefill = (id: string) => {
     const item = safeIngredients.find(i => i.id === id);
     if (!item) return;
+    if (!canRefillStock) { setRefillErr(refillLockedMessage); return; }
     const qty = Number(refillInput);
     const warehouseAvail = asNumber(item.warehouseQty);
     if (!qty || qty <= 0) { setRefillErr(t('กรุณากรอกจำนวนที่มากกว่า 0', 'Refill quantity must be greater than 0.')); return; }
@@ -295,6 +350,7 @@ export default function StockManagementView({
 
   // ── Add existing ingredient from central warehouse to branch ────────────────
   const submitAdd = () => {
+    if (!canRefillStock) { setAddErr(refillLockedMessage); return; }
     const item = warehouseMasterItems.find(i => i.id === addItemId);
     if (!item) { setAddErr(t('กรุณาเลือกวัตถุดิบจากคลังกลาง', 'Please select an ingredient from the central warehouse.')); return; }
     const branchMatch = scoped.find(i => itemKey(i.name, i.unit) === itemKey(item.name, item.unit));
@@ -338,6 +394,11 @@ export default function StockManagementView({
   const addBranchItem = addItem ? scoped.find(i => itemKey(i.name, i.unit) === itemKey(addItem.name, addItem.unit)) ?? null : null;
   const addBranchQty = addBranchItem?.quantity ?? 0;
   const addIsDuplicate = Boolean(addBranchItem);
+  const confirmRound = (round: CountRound) => {
+    const complete = round === 'open' ? openingComplete : closingComplete;
+    if (!complete) return;
+    setConfirmedRounds(prev => ({ ...prev, [`${round}:${activeBranch}:${TODAY}`]: true }));
+  };
 
   const tabs: { key: typeof statusFilter; label: string; count: number }[] = [
     { key: 'all',       label: t('ทั้งหมด', 'All'),               count: scoped.length },
@@ -423,8 +484,8 @@ export default function StockManagementView({
               </button>
             )}
             {canEdit && (
-              <button id="add-ingredient-btn" onClick={() => { setShowAdd(true); setAddItemId(warehouseMasterItems[0]?.id || ''); setAddSearch(''); setAddQty(''); setAddErr(''); }}
-                className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
+              <button id="add-ingredient-btn" disabled={!canRefillStock} onClick={() => { setShowAdd(true); setAddItemId(warehouseMasterItems[0]?.id || ''); setAddSearch(''); setAddQty(''); setAddErr(''); }}
+                className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
                 <PackagePlus size={14} /> {t('เพิ่มวัตถุดิบเข้าสาขา', 'Add Ingredient to Branch')}
               </button>
             )}
@@ -464,6 +525,63 @@ export default function StockManagementView({
           })}
         </div>
       </div>
+
+      {isStaff && isToday && (
+        <div className={`border rounded-xl p-4 space-y-3 ${activeComplete ? 'bg-emerald-50/50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
+          <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                {checkRound === 'open' ? <Sunrise size={16} className={activeComplete ? 'text-emerald-700' : 'text-amber-700'} /> : <Sunset size={16} className={activeComplete ? 'text-emerald-700' : 'text-amber-700'} />}
+                <h4 className="font-black text-sm text-zinc-900">{roundLabel(checkRound)}</h4>
+                <span className={`px-2 py-0.5 rounded-full text-[9.5px] font-bold border ${activeConfirmed ? 'bg-emerald-100 text-emerald-800 border-emerald-200' : 'bg-white/80 text-zinc-600 border-zinc-200'}`}>
+                  {activeConfirmed ? t('ยืนยันแล้ว', 'Confirmed') : t('รอการยืนยัน', 'Pending Confirmation')}
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-zinc-700">
+                {t(`ตรวจแล้ว ${activeChecked} / ${requiredItems.length} รายการ`, `Checked ${activeChecked} / ${requiredItems.length} items`)}
+              </p>
+              {!activeComplete && (
+                <p className="text-[11px] text-amber-800 font-semibold flex items-start gap-1.5">
+                  <AlertTriangle size={13} className="shrink-0 mt-0.5" />
+                  {checkRound === 'open'
+                    ? t('ต้องตรวจนับสต็อกเปิดร้านให้ครบก่อนเปิดรับออเดอร์', 'Opening stock check must be completed before Order Management is available.')
+                    : t('ต้องตรวจนับสต็อกปิดร้านให้ครบก่อนปิดร้าน', 'Closing stock check must be completed before store closing can be confirmed.')}
+                </p>
+              )}
+              {checkRound === 'close' && (
+                <p className="text-[11px] text-zinc-600 font-semibold">
+                  {t('การเติมสต็อกถูกปิดใช้งานระหว่างรอบปิดร้าน', 'Refill stock is disabled during the closing check.')}
+                </p>
+              )}
+              {checkRound === 'open' && !isOperatingHours && (
+                <p className="text-[11px] text-amber-800 font-semibold">
+                  {t('เติมสต็อกได้เฉพาะเวลาให้บริการ 07:00 - 22:00', 'Refill is available only during operating hours, 07:00 - 22:00.')}
+                </p>
+              )}
+            </div>
+            <button
+              id={`confirm-${checkRound}-stock-check`}
+              disabled={!activeComplete || activeConfirmed}
+              onClick={() => confirmRound(checkRound)}
+              className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 shrink-0"
+            >
+              <CheckCircle size={14} />
+              {checkRound === 'open' ? t('ยืนยันเปิดร้าน', 'Confirm Store Opening') : t('ยืนยันปิดร้าน', 'Confirm Store Closing')}
+            </button>
+          </div>
+
+          {!activeComplete && (
+            <div className="pt-2 border-t border-amber-200/80">
+              <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-2">{t('รายการที่ยังไม่ได้ตรวจ', 'Missing Items')}</p>
+              <div className="flex flex-wrap gap-1.5">
+                {activeMissing.map(name => (
+                  <span key={name} className="px-2 py-1 rounded-md bg-white border border-amber-200 text-[10px] font-bold text-amber-800">{name}</span>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Historical (read-only) banner */}
       {!isToday && (
@@ -549,7 +667,7 @@ export default function StockManagementView({
         <div className="bg-white border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs self-start">
           {selectedItem ? (() => {
             const cfg = STATE_CFG[classify(selectedItem)];
-            const chk = checks[selectedItem.id];
+            const chk = roundCheck(checkRound, selectedItem.id);
             const rfl = refills[selectedItem.id];
             const warehouseAvail = asNumber(selectedItem.warehouseQty);
             const warehouseEmpty = warehouseAvail <= 0;
@@ -619,27 +737,30 @@ export default function StockManagementView({
                       </button>
                     </div>
 
-                    {/* Refill Stock */}
-                    <div className="p-3 border border-sky-200 rounded-xl bg-sky-50/40 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[9px] text-sky-700 uppercase tracking-wider font-extrabold">{t('เติมสต็อก', 'Refill Stock')}</span>
-                        <span className="text-[9.5px] font-bold text-sky-700 flex items-center gap-1"><Warehouse size={11} />{fmtQty(selectedItem.warehouseQty)} {selectedItem.unit}</span>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 leading-snug">{t('เพิ่มสต็อกจากคลังกลางเข้าสาขา', 'Add stock from the central warehouse.')}</p>
-                      <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่จะเติม', 'Refill Quantity')}</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <input id="refill-input" type="number" min={1} step="any" disabled={warehouseEmpty} value={refillInput} onChange={e => { setRefillInput(e.target.value); setRefillErr(''); }}
-                            className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-sky-500 disabled:bg-stone-100" placeholder="0" />
-                          <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
+                    {checkRound === 'open' && (
+                      <div className={`p-3 border rounded-xl space-y-2.5 ${!canRefillStock ? 'border-zinc-200 bg-zinc-50' : 'border-sky-200 bg-sky-50/40'}`}>
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] text-sky-700 uppercase tracking-wider font-extrabold">{t('เติมสต็อก', 'Refill Stock')}</span>
+                          <span className="text-[9.5px] font-bold text-sky-700 flex items-center gap-1"><Warehouse size={11} />{fmtQty(selectedItem.warehouseQty)} {selectedItem.unit}</span>
                         </div>
-                      </label>
-                      {warehouseEmpty && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{t('คลังกลางไม่มีสินค้าคงเหลือ', 'Central warehouse stock is empty.')}</p>}
-                      {refillErr && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{refillErr}</p>}
-                      <button id="submit-refill-btn" disabled={warehouseEmpty || refillInput === ''} onClick={() => submitRefill(selectedItem.id)}
-                        className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
-                        <PackagePlus size={13} /> {t('เติมสต็อก', 'Refill Stock')}
-                      </button>
-                    </div>
+                        <p className="text-[10px] text-zinc-500 leading-snug">
+                          {canRefillStock ? t('เพิ่มสต็อกจากคลังกลางเข้าสาขา', 'Add stock from the central warehouse.') : refillLockedMessage}
+                        </p>
+                        <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่จะเติม', 'Refill Quantity')}</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <input id="refill-input" type="number" min={1} step="any" disabled={warehouseEmpty || !canRefillStock} value={refillInput} onChange={e => { setRefillInput(e.target.value); setRefillErr(''); }}
+                              className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-sky-500 disabled:bg-stone-100" placeholder="0" />
+                            <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
+                          </div>
+                        </label>
+                        {warehouseEmpty && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{t('คลังกลางไม่มีสินค้าคงเหลือ', 'Central warehouse stock is empty.')}</p>}
+                        {refillErr && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{refillErr}</p>}
+                        <button id="submit-refill-btn" disabled={warehouseEmpty || !canRefillStock || refillInput === ''} onClick={() => submitRefill(selectedItem.id)}
+                          className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+                          <PackagePlus size={13} /> {t('เติมสต็อก', 'Refill Stock')}
+                        </button>
+                      </div>
+                    )}
                   </>) : (
                     <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-center text-zinc-400 text-[11px]">
                       {!isToday

@@ -9,7 +9,7 @@ import Header from './components/Header';
 import DashboardView from './components/DashboardView';
 import OrdersView from './components/OrdersView';
 import PaymentVerificationView from './components/PaymentVerificationView';
-import StockManagementView from './components/StockManagementView';
+import StockManagementView, { type StockGateStatus } from './components/StockManagementView';
 import MenuPricingView from './components/MenuPricingView';
 import CouponsView from './components/CouponsView';
 import OtherViews from './components/OtherViews';
@@ -133,6 +133,12 @@ export default function App() {
   const [branchPrices, setBranchPrices] = useState<BranchPrice[]>([]);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
+  const [stockGateStatus, setStockGateStatus] = useState<StockGateStatus | null>(null);
+  const staffOpeningGatePassed = roleMode !== 'Staff' || (stockGateStatus?.branch === staffAssignedBranch && stockGateStatus.openingConfirmed);
+
+  useEffect(() => {
+    setStockGateStatus(null);
+  }, [staffAssignedBranch, roleMode]);
 
   // Hydrate local states on load Mount
   useEffect(() => {
@@ -806,21 +812,49 @@ export default function App() {
           )}
 
           {currentTab === 'Orders' && (
-            <OrdersView
-              orders={orders}
-              ingredients={ingredients}
-              nowMin={nowMin}
-              updateOrderStatus={updateOrderStatus}
-              cancelOrderWithReason={cancelOrderWithReason}
-              updateRefundStatus={updateRefundStatus}
-              selectedBranch={selectedBranch}
-              setSelectedBranch={setSelectedBranch}
-              selectedOrderId={selectedOrderId}
-              setSelectedOrderId={setSelectedOrderId}
-              onNavigateToTab={handleDashboardNavigate}
-              roleMode={roleMode}
-              staffAssignedBranch={staffAssignedBranch}
-            />
+            roleMode === 'Staff' && !staffOpeningGatePassed ? (
+              <div className="p-6">
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 max-w-2xl shadow-xs">
+                  <h3 className="font-black text-sm text-amber-900">Opening Stock Check Required</h3>
+                  <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                    Staff must complete and confirm the opening stock check before accessing Order Management.
+                    {stockGateStatus ? ` Checked ${stockGateStatus.openingChecked} / ${stockGateStatus.total} required items.` : ''}
+                  </p>
+                  {stockGateStatus && stockGateStatus.missingOpening.length > 0 && (
+                    <div className="mt-3">
+                      <p className="text-[10px] font-black uppercase tracking-wider text-amber-800 mb-2">Missing Items</p>
+                      <div className="flex flex-wrap gap-1.5">
+                        {stockGateStatus.missingOpening.map(name => (
+                          <span key={name} className="px-2 py-1 rounded-md bg-white border border-amber-200 text-[10px] font-bold text-amber-800">{name}</span>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  <button
+                    onClick={() => setCurrentTab('Stock Management')}
+                    className="mt-4 px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg"
+                  >
+                    Go to Daily Stock Check
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <OrdersView
+                orders={orders}
+                ingredients={ingredients}
+                nowMin={nowMin}
+                updateOrderStatus={updateOrderStatus}
+                cancelOrderWithReason={cancelOrderWithReason}
+                updateRefundStatus={updateRefundStatus}
+                selectedBranch={selectedBranch}
+                setSelectedBranch={setSelectedBranch}
+                selectedOrderId={selectedOrderId}
+                setSelectedOrderId={setSelectedOrderId}
+                onNavigateToTab={handleDashboardNavigate}
+                roleMode={roleMode}
+                staffAssignedBranch={staffAssignedBranch}
+              />
+            )
           )}
 
           {currentTab === 'Payment Verification' && (
@@ -843,6 +877,7 @@ export default function App() {
               staffAssignedBranch={staffAssignedBranch}
               isLoading={inventoryLoading}
               error={inventoryError}
+              onGateChange={setStockGateStatus}
             />
           )}
 
