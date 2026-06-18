@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { 
   Building, 
   MapPin, 
@@ -7,22 +7,21 @@ import {
   Briefcase, 
   Mail, 
   Trash2, 
-  Sparkles, 
   Clock, 
   Plus, 
   Search, 
   Award, 
   ArrowUpRight, 
   BarChart2, 
-  Settings, 
   Check, 
   Send,
   Eye,
-  Sliders,
   Bell,
   Download,
   History,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Image as ImageIcon,
+  X
 } from 'lucide-react';
 import { Branch, Member, Staff, Promotion, Activity, Order } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
@@ -59,7 +58,7 @@ export default function OtherViews({
     case 'Branches':
       return <BranchesView />;
     case 'Promotions':
-      return <PromotionsView promotions={promotions} setPromotions={setPromotions} />;
+      return <PromotionsView promotions={promotions} setPromotions={setPromotions} setActivities={setActivities} />;
     case 'Members':
       return <MembersView members={members} setMembers={setMembers} />;
     case 'Staff Management':
@@ -70,8 +69,6 @@ export default function OtherViews({
       return <AuditLogView activities={activities} />;
     case 'Notification Center':
       return <NotificationCenterView activities={activities} setActivities={setActivities} />;
-    case 'Settings':
-      return <SettingsView roleMode={roleMode} />;
     default:
       return (
         <div className="p-6 text-center text-zinc-400 text-xs font-sans">
@@ -153,155 +150,470 @@ function BranchesView() {
 // ----------------------------------------------------
 // 2. PROMOTIONS VIEW (ADVERTISING BOARD / CAMPAIGNS)
 // ----------------------------------------------------
-function PromotionsView({ promotions, setPromotions }: { promotions: Promotion[], setPromotions: any }) {
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [editTitle, setEditTitle] = useState('');
-  const [editSubtitle, setEditSubtitle] = useState('');
-  const { language, t } = useLanguage();
+const BRANCH_OPTIONS: Exclude<Branch, 'All Branches'>[] = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
+type PromotionStatus = Extract<Promotion['status'], 'Draft' | 'Published' | 'Scheduled' | 'Expired'>;
+type ImageField = 'bannerImage' | 'detailImage' | 'thumbnailImage';
 
-  const handleToggleState = (id: string) => {
-    setPromotions((prev: any) => prev.map((p: any) => {
-      if (p.id === id) {
-        return { ...p, status: p.status === 'Active' ? 'Inactive' : 'Active' };
-      }
-      return p;
-    }));
+const blankPromotion = (): Promotion => ({
+  id: `PROMO-${Date.now().toString().slice(-6)}`,
+  title: '',
+  subtitle: '',
+  shortDescription: '',
+  fullDescription: '',
+  terms: '',
+  status: 'Draft',
+  startDate: '',
+  endDate: '',
+  clicks: 0,
+  views: 0,
+  targetBranch: 'All Branches',
+  targetBranches: [],
+  showTrending: true,
+  showAllPromotions: true,
+  sendPush: false,
+  notificationTitle: '',
+  notificationMessage: '',
+  notificationAudience: 'All users',
+  notificationScheduleType: 'Send Immediately',
+  notificationDate: '',
+  notificationTime: '',
+  notificationTargetAudience: 'All Users',
+  notificationTargetBranches: [],
+  notificationStatus: 'Draft',
+  bannerImage: '',
+  detailImage: '',
+  thumbnailImage: '',
+  orderNowBehavior: 'Open promotion detail and continue to menu',
+});
+
+const normalizePromotion = (p: Promotion): Promotion => ({
+  ...p,
+  subtitle: p.subtitle || p.shortDescription || '',
+  shortDescription: p.shortDescription ?? p.subtitle ?? '',
+  fullDescription: p.fullDescription ?? p.subtitle ?? '',
+  terms: p.terms ?? '',
+  status: p.status === 'Active' ? 'Published' : p.status === 'Inactive' ? 'Draft' : p.status,
+  targetBranches: p.targetBranches ?? (p.targetBranch === 'All Branches' ? [] : [p.targetBranch]),
+  showTrending: p.showTrending ?? true,
+  showAllPromotions: p.showAllPromotions ?? true,
+  sendPush: p.sendPush ?? false,
+  notificationTitle: p.notificationTitle ?? p.title,
+  notificationMessage: p.notificationMessage ?? p.subtitle ?? '',
+  notificationAudience: p.notificationAudience ?? 'All users',
+  notificationScheduleType: p.notificationScheduleType ?? 'Send Immediately',
+  notificationDate: p.notificationDate ?? '',
+  notificationTime: p.notificationTime ?? '',
+  notificationTargetAudience: p.notificationTargetAudience ?? 'All Users',
+  notificationTargetBranches: p.notificationTargetBranches ?? [],
+  notificationStatus: p.notificationStatus ?? (p.sendPush ? 'Draft' : undefined),
+  bannerImage: p.bannerImage ?? '',
+  detailImage: p.detailImage ?? '',
+  thumbnailImage: p.thumbnailImage ?? '',
+  views: p.views ?? p.clicks ?? 0,
+  orderNowBehavior: p.orderNowBehavior ?? 'Open promotion detail and continue to menu',
+});
+
+function PromotionsView({
+  promotions,
+  setPromotions,
+  setActivities,
+}: {
+  promotions: Promotion[];
+  setPromotions: React.Dispatch<React.SetStateAction<Promotion[]>>;
+  setActivities: React.Dispatch<React.SetStateAction<Activity[]>>;
+}) {
+  const { language } = useLanguage();
+  const t = (th: string, en: string) => (language === 'TH' ? th : en);
+  const [editing, setEditing] = useState<Promotion | null>(null);
+  const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(promotions[0]?.id ?? null);
+  const [errors, setErrors] = useState<string[]>([]);
+  const [imageErrors, setImageErrors] = useState<Record<ImageField, string>>({ bannerImage: '', detailImage: '', thumbnailImage: '' });
+  const normalizedPromotions = promotions.map(normalizePromotion);
+
+  const notificationDateTime = (p: Promotion) => p.notificationDate && p.notificationTime ? new Date(`${p.notificationDate}T${p.notificationTime}`) : null;
+  const formatSchedule = (p: Promotion) => {
+    const dt = notificationDateTime(p);
+    if (!dt) return t('ยังไม่ได้ตั้งเวลา', 'Not scheduled');
+    return `${p.notificationDate} ${p.notificationTime}`;
+  };
+  const logNotification = (action: string, promo: Promotion, status: NonNullable<Promotion['notificationStatus']>) => {
+    const when = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    setActivities(prev => [{
+      id: `ACT-NOTIF-${Date.now()}`,
+      text: `${action} — Promotion: "${promo.title || 'Untitled promotion'}" — Notification Status: ${status} — User: Admin User — Date/Time: ${when}`,
+      time: when,
+      type: 'coupon',
+      status: status === 'Failed' ? 'Alert' : 'Sent',
+    }, ...prev]);
   };
 
-  const handleUpdate = () => {
-    if (!editingId) return;
-    setPromotions((prev: any) => prev.map((p: any) => {
-      if (p.id === editingId) {
-        return { ...p, title: editTitle, subtitle: editSubtitle };
-      }
-      return p;
-    }));
-    setEditingId(null);
+  useEffect(() => {
+    if (promotions.length === 0) {
+      if (selectedPromotionId) setSelectedPromotionId(null);
+      return;
+    }
+    if (!selectedPromotionId || !promotions.some(p => p.id === selectedPromotionId)) {
+      setSelectedPromotionId(promotions[0].id);
+    }
+  }, [promotions, selectedPromotionId]);
+
+  useEffect(() => {
+    const sendDueNotifications = () => {
+      const due: Promotion[] = [];
+      setPromotions(prev => prev.map(p => {
+        const rec = normalizePromotion(p);
+        const scheduledAt = notificationDateTime(rec);
+        if (rec.sendPush && rec.notificationStatus === 'Scheduled' && scheduledAt && scheduledAt.getTime() <= Date.now()) {
+          due.push({ ...rec, notificationStatus: 'Sent', notificationSentAt: new Date().toISOString() });
+          return { ...rec, notificationStatus: 'Sent', notificationSentAt: new Date().toISOString() };
+        }
+        return p;
+      }));
+      due.forEach(p => logNotification('Sent Notification', p, 'Sent'));
+    };
+    sendDueNotifications();
+    const timer = window.setInterval(sendDueNotifications, 30000);
+    return () => window.clearInterval(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [setPromotions]);
+
+  const statusStyle = (status: Promotion['status']) => {
+    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status;
+    return ({
+      Draft: 'bg-zinc-100 text-zinc-600 border-zinc-200',
+      Published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+      Scheduled: 'bg-sky-50 text-sky-700 border-sky-200',
+      Expired: 'bg-orange-50 text-orange-700 border-orange-200',
+    } as Record<PromotionStatus, string>)[normalized as PromotionStatus];
   };
+
+  const statusLabel = (status: Promotion['status']) => {
+    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status;
+    return normalized;
+  };
+
+  const targetLabel = (p: Promotion) => p.targetBranch === 'All Branches'
+    ? t('ทุกสาขา', 'All Branches')
+    : (p.targetBranches && p.targetBranches.length > 0 ? p.targetBranches.join(', ') : p.targetBranch);
+
+  const openCreate = () => { setEditing(blankPromotion()); setErrors([]); setImageErrors({ bannerImage: '', detailImage: '', thumbnailImage: '' }); };
+  const openEdit = (p: Promotion) => { setSelectedPromotionId(p.id); setEditing(normalizePromotion(p)); setErrors([]); setImageErrors({ bannerImage: '', detailImage: '', thumbnailImage: '' }); };
+  const setField = <K extends keyof Promotion>(key: K, value: Promotion[K]) => setEditing(prev => prev ? { ...prev, [key]: value } : prev);
+
+  const validatePublish = (p: Promotion) => {
+    const missing: string[] = [];
+    if (!p.title.trim()) missing.push(t('หัวข้อโปรโมชัน', 'Promotion Title'));
+    if (!(p.shortDescription || p.subtitle || '').trim()) missing.push(t('คำอธิบายสั้น', 'Short Description'));
+    if (!(p.fullDescription || '').trim()) missing.push(t('รายละเอียดเต็ม', 'Full Description'));
+    if (!p.bannerImage) missing.push(t('รูปแบนเนอร์', 'Banner Image'));
+    if (!p.detailImage) missing.push(t('รูปหน้ารายละเอียด', 'Detail Image'));
+    if (!p.startDate) missing.push(t('วันเริ่มต้น', 'Start Date'));
+    if (!p.endDate) missing.push(t('วันสิ้นสุด', 'End Date'));
+    if (p.targetBranch !== 'All Branches' && (!p.targetBranches || p.targetBranches.length === 0)) missing.push(t('สาขาเป้าหมาย', 'Target Branch'));
+    if (p.startDate && p.endDate && p.startDate > p.endDate) missing.push(t('ช่วงวันที่ไม่ถูกต้อง', 'Valid date range'));
+    return missing;
+  };
+  const validateNotification = (p: Promotion) => {
+    const missing: string[] = [];
+    if (!p.notificationTitle?.trim()) missing.push(t('หัวข้อแจ้งเตือน', 'Notification Title'));
+    if (!p.notificationMessage?.trim()) missing.push(t('ข้อความแจ้งเตือน', 'Notification Message'));
+    if (!p.notificationTargetAudience) missing.push(t('กลุ่มเป้าหมายแจ้งเตือน', 'Target Audience'));
+    if ((p.notificationTargetAudience === 'Selected Branches' || p.notificationTargetAudience === 'Customers of Selected Branches') && (!p.notificationTargetBranches || p.notificationTargetBranches.length === 0)) {
+      missing.push(t('สาขาเป้าหมายของแจ้งเตือน', 'Notification target branches'));
+    }
+    if (p.notificationScheduleType === 'Schedule for Later') {
+      if (!p.notificationDate) missing.push(t('วันที่แจ้งเตือน', 'Notification Date'));
+      if (!p.notificationTime) missing.push(t('เวลาแจ้งเตือน', 'Notification Time'));
+      const scheduledAt = notificationDateTime(p);
+      if (scheduledAt && scheduledAt.getTime() <= Date.now()) missing.push(t('เวลาส่งต้องอยู่ในอนาคต', 'Scheduled notification time must be in the future'));
+    }
+    return missing;
+  };
+
+  const savePromotion = (nextStatus?: PromotionStatus) => {
+    if (!editing) return;
+    const previous = promotions.find(p => p.id === editing.id);
+    const notificationAction = nextStatus === 'Published' && editing.sendPush
+      ? editing.notificationScheduleType === 'Schedule for Later' ? 'schedule' : 'send-now'
+      : 'none';
+    const nextNotificationStatus =
+      notificationAction === 'send-now' ? 'Sent'
+      : notificationAction === 'schedule' ? 'Scheduled'
+      : editing.sendPush && nextStatus !== 'Published' ? editing.notificationStatus || 'Draft'
+      : undefined;
+    const rec = normalizePromotion({
+      ...editing,
+      subtitle: editing.shortDescription || editing.subtitle,
+      status: nextStatus || editing.status,
+      sendPush: editing.sendPush,
+      notificationScheduleType: notificationAction === 'send-now' ? 'Send Immediately' : notificationAction === 'schedule' ? 'Schedule for Later' : editing.notificationScheduleType,
+      notificationStatus: nextNotificationStatus,
+      notificationSentAt: notificationAction === 'send-now' ? new Date().toISOString() : editing.notificationSentAt,
+    });
+    const missing = nextStatus === 'Published' ? validatePublish(rec) : [];
+    const notificationMissing = rec.sendPush && nextStatus === 'Published' ? validateNotification(rec) : [];
+    if ([...missing, ...notificationMissing].length) { setErrors([...missing, ...notificationMissing]); return; }
+    setPromotions(prev => {
+      const exists = prev.some(p => p.id === rec.id);
+      return exists ? prev.map(p => p.id === rec.id ? rec : p) : [rec, ...prev];
+    });
+    setSelectedPromotionId(rec.id);
+    if (rec.sendPush) {
+      const action = notificationAction === 'send-now' ? 'Sent Notification'
+        : notificationAction === 'schedule' ? 'Scheduled Notification'
+        : previous ? 'Edited Notification' : 'Created Notification';
+      logNotification(action, rec, rec.notificationStatus || 'Draft');
+    }
+    setEditing(null);
+  };
+
+  const changeStatus = (promo: Promotion, status: PromotionStatus) => {
+    const rec = normalizePromotion(promo);
+    const missing = status === 'Published' ? validatePublish(rec) : [];
+    if (missing.length) { setEditing(rec); setErrors(missing); return; }
+    setPromotions(prev => prev.map(p => p.id === promo.id ? { ...rec, status } : p));
+    setSelectedPromotionId(promo.id);
+  };
+  const cancelNotification = (promo: Promotion) => {
+    const rec = { ...normalizePromotion(promo), notificationStatus: 'Cancelled' as const };
+    setPromotions(prev => prev.map(p => p.id === promo.id ? rec : p));
+    setSelectedPromotionId(promo.id);
+    logNotification('Cancelled Notification', rec, 'Cancelled');
+  };
+
+  const handleImage = (field: ImageField, file?: File) => {
+    if (!editing || !file) return;
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      setImageErrors(prev => ({ ...prev, [field]: t('รองรับเฉพาะ JPG, PNG, WEBP', 'Only JPG, PNG, and WEBP are supported.') }));
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setImageErrors(prev => ({ ...prev, [field]: t('ขนาดไฟล์ต้องไม่เกิน 2MB', 'File size must be 2MB or less.') }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      setField(field, String(reader.result) as Promotion[ImageField]);
+      setImageErrors(prev => ({ ...prev, [field]: '' }));
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const uploadBox = (field: ImageField, title: string, hint: string) => (
+    <div
+      onDragOver={e => e.preventDefault()}
+      onDrop={e => { e.preventDefault(); handleImage(field, e.dataTransfer.files[0]); }}
+      className="border border-dashed border-[#D8C9BD] bg-stone-50 rounded-xl p-3 space-y-2"
+    >
+      <div className="flex items-center justify-between gap-2">
+        <div><p className="text-[10px] font-black text-zinc-600 uppercase">{title}</p><p className="text-[9.5px] text-zinc-400">{hint}</p></div>
+        {editing?.[field] && <button type="button" onClick={() => setField(field, '' as Promotion[ImageField])} className="text-[10px] font-bold text-red-600">{t('ลบ', 'Remove')}</button>}
+      </div>
+      {editing?.[field] ? (
+        <img src={editing[field]} alt={title} className="w-full h-24 object-cover rounded-lg border border-[#E6DFD9]" />
+      ) : (
+        <label className="h-24 rounded-lg border border-[#E6DFD9] bg-white flex flex-col items-center justify-center text-zinc-400 text-[10px] font-semibold cursor-pointer">
+          <ImageIcon size={18} className="mb-1" /> {t('ลากรูปมาวาง หรือคลิกเพื่ออัปโหลด', 'Drag image here or click to upload')}
+          <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleImage(field, e.target.files?.[0])} />
+        </label>
+      )}
+      {imageErrors[field] && <p className="text-[10px] text-red-600 font-semibold">{imageErrors[field]}</p>}
+    </div>
+  );
+
+  const selectedPromotion = normalizedPromotions.find(p => p.id === selectedPromotionId) || normalizedPromotions[0];
+  const preview = normalizePromotion(selectedPromotion || blankPromotion());
 
   return (
-    <div className="p-6 font-sans">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
-        
-        {/* Campaigns listing */}
-        <div className="lg:col-span-2 space-y-4">
-          <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E6DFD9] shadow-xs">
-            <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'แคมเปญแบนเนอร์และภาพโฆษณา' : 'Advertising Banner Campaigns'}</h3>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'กำกับข้อความต้อนรับและป้ายส่งเสริมราคาบนหน้าจอขอซื้อแอปพลิเคชันลูกค้า' : 'Publishes marketing splashes and banner graphics across client order app terminals'}</p>
-          </div>
-
-          <div className="space-y-3">
-            {promotions.map(promo => (
-              <div 
-                key={promo.id}
-                className={`p-4 bg-white border rounded-xl shadow-xs transition-all flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3.5 ${
-                  promo.status === 'Inactive' ? 'opacity-70 border-dashed bg-stone-50/50' : 'border-[#E6DFD9]'
-                }`}
-              >
-                <div className="space-y-1.5 flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-[9px] bg-amber-900/10 text-amber-900 px-1.5 py-0.2 rounded font-bold">
-                      {promo.id}
-                    </span>
-                    <span className="font-mono text-[10.5px] text-zinc-400">{language === 'TH' ? 'สาขาเป้าหมาย: ' : 'Target to: '} {promo.targetBranch}</span>
-                  </div>
-
-                  <h4 className="font-sans font-bold text-sm text-zinc-900 truncate">{promo.title}</h4>
-                  <p className="text-zinc-500 text-xs truncate leading-snug">{promo.subtitle}</p>
-                  
-                  <p className="font-mono text-[9.5px] text-zinc-400 mt-1">{language === 'TH' ? 'อายุขัยโปรแกรมบาร์:' : 'Duration:'} {promo.startDate} ~ {promo.endDate}</p>
-                </div>
-
-                <div className="flex items-center gap-4.5 self-end sm:self-auto shrink-0">
-                  <div className="text-right font-mono text-xs">
-                    <span className="text-[10px] text-zinc-400 block font-sans">{language === 'TH' ? 'ยอดจิ้มโฆษณา' : 'App Clicks'}</span>
-                    <strong className="text-[#8B6B4F] text-sm">{promo.clicks.toLocaleString()}</strong>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <button
-                      onClick={() => handleToggleState(promo.id)}
-                      className={`text-xs py-1 px-2.5 rounded-md font-bold transition-all border ${
-                        promo.status === 'Active' 
-                          ? 'bg-emerald-50 text-emerald-800 border-emerald-250/20' 
-                          : 'bg-zinc-100 text-zinc-500 border-zinc-200'
-                      }`}
-                    >
-                      {promo.status === 'Active' ? (language === 'TH' ? 'เปิดโปรโมต' : 'Active') : (language === 'TH' ? 'หยุดพักไว้' : 'Paused')}
-                    </button>
-                    <button
-                      onClick={() => {
-                        setEditingId(promo.id);
-                        setEditTitle(promo.title);
-                        setEditSubtitle(promo.subtitle);
-                      }}
-                      className="text-[10px] py-0.5 px-2.5 underline text-zinc-455 hover:text-zinc-800 font-bold"
-                    >
-                      {language === 'TH' ? 'ปรับข้อความคำบรรยาย' : 'Configure'}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+    <div className="p-6 space-y-5 font-sans">
+      <div className="bg-white border border-[#E6DFD9] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+        <div>
+          <h2 className="font-black text-lg text-[#2E2A25]">{t('จัดการโปรโมชัน', 'Promotion Management')}</h2>
+          <p className="text-xs text-zinc-500">{t('จัดการแบนเนอร์ รายการโปรโมชัน หน้ารายละเอียด และการแจ้งเตือนลูกค้า', 'Manage mobile banners, promotion lists, detail pages, and push notifications.')}</p>
         </div>
-
-        {/* Quick config edit */}
-        <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs self-start">
-          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
-            <h3 className="font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
-              <Sliders size={16} className="text-[#8B6B4F]" />
-              <span>{language === 'TH' ? 'แผงการ์ดดีไซเนอร์คำโปรย' : 'Splash Designer card'}</span>
-            </h3>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'จัดการคำเชิญชวนบนแบนเนอร์หน้าหลัก' : 'Manage creative banner lines'}</p>
-          </div>
-
-          {editingId ? (
-            <div className="p-4.5 space-y-4 text-xs font-sans">
-              <div className="space-y-1">
-                <label className="font-bold text-zinc-500 block text-[10px] uppercase font-mono tracking-wider">{language === 'TH' ? 'หัวยิงแคมเปญใหญ่:' : 'Splash Main Title:'}</label>
-                <input 
-                  type="text" 
-                  value={editTitle} 
-                  onChange={e => setEditTitle(e.target.value)}
-                  className="w-full text-xs p-2 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-bold text-zinc-800"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="font-bold text-zinc-500 block text-[10px] uppercase font-mono tracking-wider">{language === 'TH' ? 'คำอธิบายสรุปสั้น:' : 'Splash Caption Line:'}</label>
-                <textarea 
-                  value={editSubtitle} 
-                  onChange={e => setEditSubtitle(e.target.value)}
-                  className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F] h-16 resize-none font-medium text-zinc-600"
-                />
-              </div>
-
-              <div className="flex gap-2 pt-2">
-                <button 
-                  onClick={() => setEditingId(null)} 
-                  className="flex-1 py-1.5 border hover:bg-stone-50 text-[10.5px] font-semibold text-zinc-500 rounded-lg"
-                >
-                  {language === 'TH' ? 'ละทิ้ง' : 'Dismiss'}
-                </button>
-                <button 
-                  onClick={handleUpdate} 
-                  className="flex-1 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-[10.5px] font-bold rounded-lg shadow-xs"
-                >
-                  {language === 'TH' ? 'ยืนยันเปลี่ยนแปลง' : 'Confirm Changes'}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="p-8 text-center text-zinc-400 text-xs space-y-2">
-              <Sparkles size={36} className="text-zinc-200 mx-auto" />
-              <p className="font-semibold text-zinc-500">{language === 'TH' ? 'ไม่มีงานสร้างสรรค์ที่เลือกไว้' : 'No Creative Loaded'}</p>
-              <p className="text-[10px] leading-relaxed">{language === 'TH' ? 'จิ้มเปิด "ปรับข้อความคำบรรยาย" บนคีย์เพื่อเปิดสโมสรอินพุตแก้ไขหัวแบนเนอร์' : 'Select "Configure" on active rows to optimize marketing layouts and captions.'}</p>
-            </div>
-          )}
-        </div>
-
+        <button id="create-promotion-btn" onClick={openCreate} className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
+          <Plus size={14} /> {t('สร้างโปรโมชัน', 'Create Promotion')}
+        </button>
       </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+        <div className="xl:col-span-2 space-y-3">
+          {normalizedPromotions.map(promo => {
+            const isPreviewing = promo.id === preview.id;
+            return (
+            <div
+              key={promo.id}
+              onClick={() => setSelectedPromotionId(promo.id)}
+              onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedPromotionId(promo.id); }}
+              role="button"
+              tabIndex={0}
+              className={`border rounded-xl p-4 shadow-xs flex flex-col md:flex-row gap-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#8B6B4F]/30 ${isPreviewing ? 'bg-[#FDF7F1] border-[#8B6B4F]' : 'bg-white border-[#E6DFD9] hover:bg-stone-50'}`}
+            >
+              <div className="w-full md:w-32 h-24 bg-stone-100 rounded-lg overflow-hidden shrink-0 border border-[#E6DFD9]">
+                {promo.bannerImage || promo.thumbnailImage ? <img src={promo.bannerImage || promo.thumbnailImage} alt={promo.title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-3xl">%</div>}
+              </div>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  {isPreviewing && <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#8B6B4F] text-white">{t('กำลังแสดงตัวอย่าง', 'Currently Previewing')}</span>}
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusStyle(promo.status)}`}>{statusLabel(promo.status)}</span>
+                  <span className="text-[9px] font-mono text-zinc-400">{targetLabel(promo)}</span>
+                </div>
+                <h3 className="font-bold text-sm text-zinc-900 truncate">{promo.title || t('ยังไม่มีชื่อโปรโมชัน', 'Untitled promotion')}</h3>
+                <p className="text-xs text-zinc-500 line-clamp-2">{promo.shortDescription || promo.subtitle}</p>
+                <p className="font-mono text-[10px] text-zinc-400">{promo.startDate || 'YYYY-MM-DD'} - {promo.endDate || 'YYYY-MM-DD'}</p>
+                {promo.sendPush && (
+                  <p className="font-mono text-[9.5px] text-zinc-500">
+                    {t('แจ้งเตือน', 'Notification')}: <span className="font-bold">{promo.notificationStatus || 'Draft'}</span>
+                    {promo.notificationStatus === 'Scheduled' && ` · ${formatSchedule(promo)}`}
+                  </p>
+                )}
+              </div>
+              <div className="flex md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
+                <div className="text-right">
+                  <p className="text-[9px] text-zinc-400 uppercase font-bold">{t('คลิก / วิว', 'Clicks / Views')}</p>
+                  <p className="font-mono font-black text-[#8B6B4F]">{promo.clicks.toLocaleString()} / {(promo.views || 0).toLocaleString()}</p>
+                </div>
+                <div className="flex gap-1.5">
+                  <button onClick={() => openEdit(promo)} className="px-3 py-1.5 text-[10px] font-bold border border-[#E6DFD9] rounded-lg hover:bg-stone-50">{t('แก้ไข', 'Edit')}</button>
+                  {statusLabel(promo.status) === 'Published' ? (
+                    <button onClick={() => changeStatus(promo, 'Draft')} className="px-3 py-1.5 text-[10px] font-bold bg-zinc-100 text-zinc-600 rounded-lg">{t('ยกเลิกเผยแพร่', 'Unpublish')}</button>
+                  ) : (
+                    <button onClick={() => changeStatus(promo, 'Published')} className="px-3 py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg">{t('เผยแพร่', 'Publish')}</button>
+                  )}
+                  {promo.notificationStatus === 'Scheduled' && (
+                    <button onClick={() => cancelNotification(promo)} className="px-3 py-1.5 text-[10px] font-bold bg-red-50 text-red-600 rounded-lg">{t('ยกเลิกแจ้งเตือน', 'Cancel Notification')}</button>
+                  )}
+                </div>
+              </div>
+            </div>
+          );
+          })}
+        </div>
+
+        <div className="bg-white border border-[#E6DFD9] rounded-xl p-4 shadow-xs self-start space-y-4">
+          <div>
+            <h3 className="font-bold text-sm text-[#2E2A25]">{t('ตัวอย่างบนแอปมือถือ', 'Mobile App Preview')}</h3>
+            <p className="text-[10px] text-zinc-500 mt-0.5">
+              {selectedPromotion ? `${t('กำลังแสดง', 'Previewing')}: ${preview.title || t('ยังไม่มีชื่อโปรโมชัน', 'Untitled promotion')}` : t('ยังไม่มีโปรโมชันให้แสดงตัวอย่าง', 'No promotion selected for preview.')}
+            </p>
+          </div>
+          <div className="rounded-[1.75rem] bg-zinc-900 p-2">
+            <div className="bg-white rounded-[1.25rem] overflow-hidden">
+              <div className="p-3 space-y-3">
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('แบนเนอร์โปรโมชันเด่น', 'Trending Promotion banner')}</p>
+                  <div className="h-32 rounded-xl overflow-hidden bg-[#FDF1E6] relative">
+                    {preview.bannerImage && <img src={preview.bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover" />}
+                    <div className="absolute inset-0 bg-gradient-to-r from-black/45 to-transparent p-3 flex flex-col justify-end">
+                      <p className="text-white font-black text-sm">{preview.title || 'Promotion Title'}</p>
+                      <p className="text-white/85 text-[10px]">{preview.shortDescription || preview.subtitle || 'Short promotion description'}</p>
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('รายการโปรโมชันทั้งหมด', 'All Promotions list item')}</p>
+                  <div className="flex gap-2 p-2 rounded-xl border border-zinc-100">
+                    <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0">{preview.thumbnailImage && <img src={preview.thumbnailImage} alt="" className="w-full h-full object-cover" />}</div>
+                    <div className="min-w-0"><p className="font-bold text-xs truncate">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500 line-clamp-2">{preview.shortDescription || preview.subtitle || 'Short description'}</p><p className="text-[9px] text-[#8B6B4F] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p></div>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('หน้ารายละเอียดโปรโมชัน', 'Promotion Detail page')}</p>
+                  <div className="rounded-xl border border-zinc-100 overflow-hidden">
+                    <div className="h-28 bg-stone-100">{preview.detailImage && <img src={preview.detailImage} alt="" className="w-full h-full object-cover" />}</div>
+                    <div className="p-3 space-y-1"><p className="font-black text-sm">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500">{preview.fullDescription || 'Full promotion description appears here.'}</p><p className="text-[9px] text-[#8B6B4F] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p><p className="text-[9px] text-zinc-400">{targetLabel(preview)}</p><button className="w-full mt-2 py-2 bg-[#8B6B4F] text-white rounded-lg text-[10px] font-bold">{t('สั่งเลย', 'Order Now')}</button></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {editing && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={() => setEditing(null)}>
+          <div className="w-full max-w-3xl h-full bg-stone-50 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="p-4 bg-white border-b border-[#E6DFD9] flex items-center justify-between">
+              <div><h3 className="font-bold text-sm text-[#2E2A25]">{editing.title ? t('แก้ไขโปรโมชัน', 'Edit Promotion') : t('สร้างโปรโมชัน', 'Create Promotion')}</h3><p className="text-[11px] text-zinc-400">{editing.id}</p></div>
+              <button onClick={() => setEditing(null)} className="text-zinc-400 hover:text-zinc-700"><X size={18} /></button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
+              {errors.length > 0 && <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-700 font-semibold">{t('กรุณากรอกข้อมูลก่อนเผยแพร่:', 'Complete required fields before publishing:')} {errors.join(', ')}</div>}
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('หัวข้อโปรโมชัน', 'Promotion Title')} *</span><input value={editing.title} onChange={e => setField('title', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('คำอธิบายสั้น', 'Short Description')} *</span><input value={editing.shortDescription || ''} onChange={e => { setField('shortDescription', e.target.value); setField('subtitle', e.target.value); }} className="w-full p-2 border rounded-lg" /></label>
+                <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('รายละเอียดเต็ม', 'Full Description')} *</span><textarea value={editing.fullDescription || ''} onChange={e => setField('fullDescription', e.target.value)} className="w-full p-2 border rounded-lg h-24 resize-none" /></label>
+                <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('เงื่อนไข', 'Terms & Conditions')}</span><textarea value={editing.terms || ''} onChange={e => setField('terms', e.target.value)} className="w-full p-2 border rounded-lg h-20 resize-none" /></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันเริ่มต้น', 'Start Date')} *</span><input type="date" value={editing.startDate} onChange={e => setField('startDate', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันสิ้นสุด', 'End Date')} *</span><input type="date" value={editing.endDate} onChange={e => setField('endDate', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('สถานะ', 'Promotion Status')}</span><select value={statusLabel(editing.status)} onChange={e => setField('status', e.target.value as Promotion['status'])} className="w-full p-2 border rounded-lg"><option>Draft</option><option>Published</option><option>Scheduled</option><option>Expired</option></select></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('สาขาเป้าหมาย', 'Target Branch')} *</span><select value={editing.targetBranch} onChange={e => setField('targetBranch', e.target.value as Branch)} className="w-full p-2 border rounded-lg"><option value="All Branches">{t('ทุกสาขา', 'All Branches')}</option><option value="Central Plaza">{t('เลือกบางสาขา', 'Specific Branches')}</option></select></label>
+                {editing.targetBranch !== 'All Branches' && (
+                  <div className="md:col-span-2 flex flex-wrap gap-2">
+                    {BRANCH_OPTIONS.map(branch => {
+                      const active = (editing.targetBranches || []).includes(branch);
+                      return <button key={branch} type="button" onClick={() => setField('targetBranches', active ? (editing.targetBranches || []).filter(b => b !== branch) : [...(editing.targetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border ${active ? 'bg-[#8B6B4F] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
+                    })}
+                  </div>
+                )}
+              </section>
+
+              <section className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {uploadBox('bannerImage', t('แบนเนอร์ Trending', 'Trending Banner Image'), '345 x 160 px, JPG/PNG/WEBP')}
+                {uploadBox('detailImage', t('รูปหัวหน้ารายละเอียด', 'Detail Header Image'), '390 x 300 px, JPG/PNG/WEBP')}
+                {uploadBox('thumbnailImage', t('รูป Thumbnail', 'Thumbnail Image'), '80 x 80 px, JPG/PNG/WEBP')}
+              </section>
+
+              <section className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                <label className="flex items-center gap-2 p-3 bg-white border rounded-xl"><input type="checkbox" checked={!!editing.showTrending} onChange={e => setField('showTrending', e.target.checked)} /> {t('แสดงใน Trending Promotions', 'Show in Trending Promotions')}</label>
+                <label className="flex items-center gap-2 p-3 bg-white border rounded-xl"><input type="checkbox" checked={!!editing.showAllPromotions} onChange={e => setField('showAllPromotions', e.target.checked)} /> {t('แสดงในรายการโปรโมชันทั้งหมด', 'Show in All Promotions')}</label>
+                <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('พฤติกรรมปุ่ม Order Now', 'Order Now button behavior')}</span><input value={editing.orderNowBehavior || ''} onChange={e => setField('orderNowBehavior', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
+              </section>
+
+              <section className="bg-white border border-[#E6DFD9] rounded-xl p-3 space-y-3 text-xs">
+                <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={!!editing.sendPush} onChange={e => setField('sendPush', e.target.checked)} /> {t('ส่ง Push Notification หลังเผยแพร่', 'Send Push Notification after publish')}</label>
+                {editing.sendPush && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    {editing.notificationStatus === 'Sent' && (
+                      <div className="md:col-span-2 p-2.5 bg-emerald-50 border border-emerald-200 rounded-lg text-emerald-700 font-semibold">
+                        {t('แจ้งเตือนนี้ส่งแล้ว ไม่สามารถแก้ไขเนื้อหาแจ้งเตือนได้', 'This notification has been sent and its notification content can no longer be edited.')}
+                      </div>
+                    )}
+                    <label className="space-y-1"><span className="font-bold text-zinc-500">{t('หัวข้อแจ้งเตือน', 'Notification Title')} *</span><input disabled={editing.notificationStatus === 'Sent'} placeholder={t('หัวข้อแจ้งเตือน', 'Notification Title')} value={editing.notificationTitle || ''} onChange={e => setField('notificationTitle', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                    <label className="space-y-1"><span className="font-bold text-zinc-500">{t('รูปแบบการส่ง', 'Notification Schedule Type')}</span><select disabled={editing.notificationStatus === 'Sent'} value={editing.notificationScheduleType || 'Send Immediately'} onChange={e => setField('notificationScheduleType', e.target.value as Promotion['notificationScheduleType'])} className="w-full p-2 border rounded-lg disabled:bg-zinc-100"><option>Send Immediately</option><option>Schedule for Later</option></select></label>
+                    {editing.notificationScheduleType === 'Schedule for Later' && (
+                      <>
+                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันที่แจ้งเตือน', 'Notification Date')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="date" value={editing.notificationDate || ''} onChange={e => setField('notificationDate', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('เวลาแจ้งเตือน', 'Notification Time')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="time" value={editing.notificationTime || ''} onChange={e => setField('notificationTime', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                      </>
+                    )}
+                    <label className="space-y-1"><span className="font-bold text-zinc-500">{t('กลุ่มเป้าหมาย', 'Target Audience')} *</span><select disabled={editing.notificationStatus === 'Sent'} value={editing.notificationTargetAudience || 'All Users'} onChange={e => setField('notificationTargetAudience', e.target.value as Promotion['notificationTargetAudience'])} className="w-full p-2 border rounded-lg disabled:bg-zinc-100"><option>All Users</option><option>All Branches</option><option>Selected Branches</option><option>Customers of Selected Branches</option></select></label>
+                    <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('ข้อความแจ้งเตือน', 'Notification Message')} *</span><textarea disabled={editing.notificationStatus === 'Sent'} placeholder={t('ข้อความแจ้งเตือน', 'Notification Message')} value={editing.notificationMessage || ''} onChange={e => setField('notificationMessage', e.target.value)} className="w-full p-2 border rounded-lg h-16 resize-none disabled:bg-zinc-100" /></label>
+                    {(editing.notificationTargetAudience === 'Selected Branches' || editing.notificationTargetAudience === 'Customers of Selected Branches') && (
+                      <div className="md:col-span-2 flex flex-wrap gap-2">
+                        {BRANCH_OPTIONS.map(branch => {
+                          const active = (editing.notificationTargetBranches || []).includes(branch);
+                          return <button key={branch} type="button" disabled={editing.notificationStatus === 'Sent'} onClick={() => setField('notificationTargetBranches', active ? (editing.notificationTargetBranches || []).filter(b => b !== branch) : [...(editing.notificationTargetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border disabled:opacity-50 ${active ? 'bg-[#8B6B4F] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
+                        })}
+                      </div>
+                    )}
+                    <div className="md:col-span-2 p-3 bg-stone-50 border border-[#E6DFD9] rounded-xl space-y-1">
+                      <p className="font-black text-[10px] uppercase text-zinc-500">{t('ตัวอย่างแจ้งเตือน', 'Notification Preview')}</p>
+                      <p className="font-bold text-zinc-900">{editing.notificationTitle || t('หัวข้อแจ้งเตือน', 'Notification Title')}</p>
+                      <p className="text-zinc-600">{editing.notificationMessage || t('ข้อความแจ้งเตือนจะแสดงที่นี่', 'Notification message appears here.')}</p>
+                      <p className="font-mono text-[10px] text-zinc-400">{editing.notificationScheduleType === 'Schedule for Later' ? formatSchedule(editing) : t('ส่งทันทีหลังเผยแพร่', 'Send immediately after publish')} · {editing.notificationTargetAudience || 'All Users'}</p>
+                    </div>
+                  </div>
+                )}
+              </section>
+            </div>
+            <div className="p-4 bg-white border-t border-[#E6DFD9] flex justify-end gap-2">
+              <button onClick={() => savePromotion('Draft')} className="px-4 py-2 border rounded-lg text-xs font-bold">{t('บันทึกฉบับร่าง', 'Save Draft')}</button>
+              <button onClick={() => savePromotion('Published')} className="px-4 py-2 bg-[#8B6B4F] text-white rounded-lg text-xs font-bold">{t('เผยแพร่', 'Publish')}</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -616,10 +928,20 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
   });
 
   const completedOrders = filteredOrders.filter(o => o.status === 'Completed' || o.status === 'Ready For Pickup');
+  const isSystemCancelled = (o: Order) => ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(o.status) && (
+    o.status === 'Auto Cancelled' ||
+    o.cancelledBy === 'System' ||
+    o.cancellationReason === 'Customer Did Not Pay' ||
+    o.cancellationReason === 'Payment Timeout' ||
+    o.cancellationReason === 'Payment Expired' ||
+    o.cancellationReason === 'Payment Verification Failed'
+  );
   
   // Calculate dynamic metrics!
   const totalRevenue = completedOrders.reduce((sum, o) => sum + o.amount, 0);
   const totalOrdersCount = filteredOrders.length;
+  const autoCancelledCount = filteredOrders.filter(isSystemCancelled).length;
+  const staffCancelledCount = filteredOrders.filter(o => ['Cancelled', 'Cancelled by Staff'].includes(o.status) && !isSystemCancelled(o)).length;
   // Dynamic coupon discount estimation (averages 12% on applicable completed bills)
   const totalDiscount = completedOrders.reduce((sum, o) => {
     const isCouponUsed = o.id.includes('2') || o.id.includes('6') || o.id.includes('9');
@@ -646,7 +968,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
   const handleExportExcel = () => {
     const headers = [
       'Order ID', 'Queue No', 'Customer Name', 'Customer Phone', 'Branch',
-      'Status', 'Amount (THB)', 'Coupon Discount (THB)', 'Payment Status', 'Order Time'
+      'Status', 'Cancellation Type', 'Cancellation Reason', 'Amount (THB)', 'Coupon Discount (THB)', 'Payment Status', 'Order Time'
     ];
     
     const rows = filteredOrders.map(ord => {
@@ -659,6 +981,8 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
         ord.customerPhone,
         ord.branch,
         ord.status,
+        ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(ord.status) ? (isSystemCancelled(ord) ? 'Auto Cancelled' : 'Cancelled by Staff') : '',
+        ord.cancellationReason || '',
         ord.amount,
         discountVal.toFixed(2),
         ord.paymentStatus,
@@ -748,7 +1072,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
       </div>
 
       {/* Structured metrics summary grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-fade-in">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 animate-fade-in">
         
         {/* Total Revenue */}
         <div className="p-4 border border-[#E6DFD9] rounded-xl bg-white shadow-xs">
@@ -791,6 +1115,26 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
           </strong>
           <span className="text-rose-600 font-mono text-[10px] font-semibold mt-1 block">
             {language === 'TH' ? 'คิดจากยอดขายสุทธิ' : 'Estimated flat vat sum'}
+          </span>
+        </div>
+
+        <div className="p-4 border border-red-100 rounded-xl bg-red-50/30 shadow-xs">
+          <span className="text-[11.5px] text-red-600 font-bold uppercase tracking-wider block">{language === 'TH' ? 'ยกเลิกอัตโนมัติ' : 'Auto Cancelled Orders'}</span>
+          <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block">
+            {autoCancelledCount}
+          </strong>
+          <span className="text-red-500 font-mono text-[10px] block mt-1">
+            {language === 'TH' ? 'ปัญหาชำระเงิน/หมดเวลา' : 'Payment failures/timeouts'}
+          </span>
+        </div>
+
+        <div className="p-4 border border-orange-100 rounded-xl bg-orange-50/30 shadow-xs">
+          <span className="text-[11.5px] text-orange-600 font-bold uppercase tracking-wider block">{language === 'TH' ? 'ยกเลิกโดยพนักงาน' : 'Staff Cancelled Orders'}</span>
+          <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block">
+            {staffCancelledCount}
+          </strong>
+          <span className="text-orange-600 font-mono text-[10px] block mt-1">
+            {language === 'TH' ? 'ปัญหาหน้าร้าน/สต็อก' : 'Ops and inventory issues'}
           </span>
         </div>
 
@@ -1029,130 +1373,7 @@ function NotificationCenterView({ activities, setActivities }: { activities: Act
 }
 
 // ----------------------------------------------------
-// 7. OPERATIONS CONTROL SETTINGS VIEW
-// ----------------------------------------------------
-function SettingsView({ roleMode }: { roleMode: 'Admin' | 'Staff' }) {
-  const [autoVerify, setAutoVerify] = useState(false);
-  const [minPrice, setMinPrice] = useState(0);
-  const [shopOpen, setShopOpen] = useState(true);
-  const [isSaved, setIsSaved] = useState(false);
-  const { language } = useLanguage();
-
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSaved(true);
-    setTimeout(() => setIsSaved(false), 2000);
-  };
-
-  return (
-    <div className="p-6 space-y-6 font-sans">
-      <div className="bg-white border rounded-xl p-5 shadow-xs max-w-2xl animate-fade-in">
-        <div className="border-b pb-3 mb-4 flex items-center justify-between">
-          <div>
-            <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'การตั้งค่าและแผงกิจการงานกาแฟ' : 'Coffee Operations Config'}</h3>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'พารามิเตอร์ขับเคลื่อนสถานะการขอสั่งและควบคุมสถานการณ์ให้บริการหน้าร้าน' : 'Parameters driving orders dispatch systems'}</p>
-          </div>
-          <Settings size={18} className="text-[#8B6B4F]" />
-        </div>
-
-        {isSaved && (
-          <div className="bg-[#EBF9F1] border text-emerald-800 p-3 rounded-lg text-xs font-bold mb-4">
-            {language === 'TH' 
-              ? '✓ ทำการบันทึกแก้ไขกิจการสำเร็จ สัญญานการควบคุมถูกส่งประกาศยังแท็บและหน้าจอจัดเตรียมแล้ว'
-              : '✓ Settings saved successfully! Operation changes propagated to kitchen dispatch displays.'
-            }
-          </div>
-        )}
-
-        <form onSubmit={handleSaveSettings} className="space-y-4 text-xs text-zinc-700">
-          
-          {/* General business active hours */}
-          <div className="p-3.5 bg-stone-55 border rounded-xl flex items-center justify-between">
-            <div>
-              <span className="font-bold block tracking-tight text-zinc-800">{language === 'TH' ? 'สถานะทั่วไปของสถานที่ร้านกาแฟ' : 'Physical shop operating state'}</span>
-              <span className="text-[10px] text-zinc-400">{language === 'TH' ? 'หากปิดลง ลูกค้าทางสั่งซื้อจะได้รับป้ายแถบ "สาขาปิดทำการชั่วคราว"' : "If disabled, mobile order client displays 'Branch Closed'"}</span>
-            </div>
-
-            <button
-              id="settings-shop-toggle-btn"
-              type="button"
-              onClick={() => setShopOpen(!shopOpen)}
-              className={`py-1 px-3 border rounded-lg font-bold text-[10px] uppercase transition-all ${
-                shopOpen 
-                  ? 'bg-emerald-50 text-emerald-850 border-emerald-200' 
-                  : 'bg-red-50 text-red-700 border-red-200'
-              }`}
-            >
-              {shopOpen ? (language === 'TH' ? '🏪 ร้านเปิดทำการอยู่' : '🏪 Open/Accepting') : (language === 'TH' ? '🏪 ปิดบริการ/งดสั่ง' : '🏪 Closed/Paused')}
-            </button>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5 pt-1">
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-500 block text-[10px] uppercase font-mono">{language === 'TH' ? 'กรอบจำกัดราคาสั่งซื้อขั้นต่ำ (฿):' : 'Min order limit (฿):'}</label>
-              <input 
-                id="settings-min-price-input"
-                type="number" 
-                value={minPrice} 
-                onChange={e => setMinPrice(Number(e.target.value))}
-                className="w-full text-xs p-2 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-mono"
-              />
-            </div>
-
-            <div className="space-y-1">
-              <label className="font-bold text-zinc-500 block text-[10px] uppercase font-mono">{language === 'TH' ? 'รหัส Biller ID บัญชี PromptPay:' : 'Biller ID Promptpay Code:'}</label>
-              <input 
-                type="text" 
-                disabled
-                value="0923249018442"
-                className="w-full text-xs p-2 bg-stone-100 text-zinc-400 font-mono border rounded-lg"
-              />
-            </div>
-          </div>
-
-          {/* Toggle pill of auto slip confirmation */}
-          <div className="p-3.5 bg-stone-50 border rounded-xl flex items-center justify-between font-sans">
-            <div>
-              <span className="font-bold block tracking-tight text-zinc-800">{language === 'TH' ? 'เปิดระบบอนุมัติเศษสลิปฝากอัตโนมัติ?' : 'Auto-verify payment slips?'}</span>
-              <span className="text-[10px] text-zinc-400">{language === 'TH' ? 'พยายามเปรียบเทียบภาพธนาคารและเลขสลักบัญชีแบบอัตโนมัติไร้แรงมนุษย์ตรวจสอบ' : 'Attempts automated transfer matches using receipt logs database'}</span>
-            </div>
-
-            <button
-              id="settings-autoverify-toggle"
-              type="button"
-              onClick={() => {
-                if (roleMode === 'Staff') return; // Admin only config
-                setAutoVerify(!autoVerify);
-              }}
-              className={`py-1 px-3 border rounded-lg font-bold text-[10px] uppercase transition-all ${
-                roleMode === 'Staff' 
-                  ? 'opacity-40 bg-zinc-100 text-zinc-400 cursor-not-allowed'
-                  : autoVerify 
-                    ? 'bg-emerald-50 text-emerald-850 border-emerald-200' 
-                    : 'bg-stone-50 border-zinc-200 text-zinc-500'
-              }`}
-            >
-              {roleMode === 'Staff' ? (language === 'TH' ? 'ล็อกไว้ระดับแอดมิน' : 'Locked (Super)') : autoVerify ? (language === 'TH' ? 'อนุมัติสลักด่วน' : 'ENABLED') : (language === 'TH' ? 'ตรวจด้วยมือถือบอน' : 'MANUAL REVIEW')}
-            </button>
-          </div>
-
-          <div className="flex justify-end pt-2">
-            <button
-              id="settings-save-submit-btn"
-              type="submit"
-              className="px-5 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-xs font-bold rounded-lg shadow-xs"
-            >
-              {language === 'TH' ? 'อัปเดตงานกิจการ' : 'Apply Configurations'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
-
-// ----------------------------------------------------
-// 8. AUDIT LOG MODULE (FRD v2.0)
+// 7. AUDIT LOG MODULE (FRD v2.0)
 // ----------------------------------------------------
 function AuditLogView({ activities = [] }: { activities: Activity[] }) {
   const { language } = useLanguage();

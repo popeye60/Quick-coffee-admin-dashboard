@@ -5,13 +5,20 @@
 
 export type Branch = 'Central Plaza' | 'Siam Square' | 'Mega Bangna' | 'The Mall Korat' | 'All Branches';
 
-export type OrderStatus = 'Pending Payment' | 'Paid' | 'Preparing' | 'Ready For Pickup' | 'Queue Called' | 'Completed' | 'Cancelled';
+export type OrderStatus = 'Pending Payment' | 'Paid' | 'Preparing' | 'Ready For Pickup' | 'Queue Called' | 'Completed' | 'Cancelled' | 'Auto Cancelled' | 'Cancelled by Staff';
 
 export type CancellationReason =
   | 'Customer Did Not Pay'
   | 'Customer Requested Cancellation'
   | 'Wrong Order Selected'
   | 'Out of Stock'
+  | 'Ingredient Out of Stock'
+  | 'Equipment Unavailable'
+  | 'Store Temporarily Closed'
+  | 'Incorrect Order Information'
+  | 'Payment Timeout'
+  | 'Payment Expired'
+  | 'Payment Verification Failed'
   | 'Store Unable to Fulfill'
   | 'Staff Error'
   | 'Other';
@@ -44,6 +51,7 @@ export interface SpecialMenuMeta {
   description?: string;
   startDate?: string;   // YYYY-MM-DD
   endDate?: string;     // YYYY-MM-DD
+  availableBranches?: Exclude<Branch, 'All Branches'>[];
   priority: number;
   active: boolean;
   publish: 'Draft' | 'Published' | 'Expired';
@@ -107,6 +115,8 @@ export interface Order {
   cancellationNote?: string;
   cancelledBy?: string;
   cancelledAt?: string;
+  originalOrderStatus?: OrderStatus;
+  originalQueueNo?: string;
   refundStatus?: RefundStatus;
   refundAmount?: number;
   refundNote?: string;
@@ -117,9 +127,15 @@ export interface Ingredient {
   name: string;
   type: string; // "Ingredient" | "Packaging" | "Bean"
   status: 'In Stock' | 'Low Stock' | 'Out of Stock';
-  stockLevel: number; // percentage 0 - 100
-  unit: string; // "kg" | "liters" | "bags" | "boxes"
+  stockLevel: number; // legacy percentage 0 - 100 (kept for dashboard bars)
+  unit: string; // "kg" | "liters" | "bottle" | "boxes"
   branch: Exclude<Branch, 'All Branches'>;
+  // Real physical-unit inventory (replaces percentage for Staff stock workflow)
+  quantity: number;            // actual remaining quantity in `unit`
+  lowThreshold: number;        // qty at/below = Low Stock
+  criticalThreshold: number;   // qty at/below = Critical
+  warehouseQty: number;        // central warehouse availability for this ingredient
+  lastAdded?: number;          // last quantity transferred from warehouse to branch
 }
 
 export interface Coupon {
@@ -170,11 +186,33 @@ export interface Promotion {
   id: string;
   title: string;
   subtitle: string;
-  status: 'Active' | 'Inactive';
+  shortDescription?: string;
+  fullDescription?: string;
+  terms?: string;
+  status: 'Active' | 'Inactive' | 'Draft' | 'Published' | 'Scheduled' | 'Expired';
   startDate: string;
   endDate: string;
   clicks: number;
   targetBranch: Branch;
+  targetBranches?: Exclude<Branch, 'All Branches'>[];
+  showTrending?: boolean;
+  showAllPromotions?: boolean;
+  sendPush?: boolean;
+  notificationTitle?: string;
+  notificationMessage?: string;
+  notificationAudience?: 'All users' | 'Users by branch' | 'Specific branch customers';
+  notificationScheduleType?: 'Send Immediately' | 'Schedule for Later';
+  notificationDate?: string;
+  notificationTime?: string;
+  notificationTargetAudience?: 'All Users' | 'All Branches' | 'Selected Branches' | 'Customers of Selected Branches';
+  notificationTargetBranches?: Exclude<Branch, 'All Branches'>[];
+  notificationStatus?: 'Draft' | 'Scheduled' | 'Sent' | 'Failed' | 'Cancelled';
+  notificationSentAt?: string;
+  bannerImage?: string;
+  detailImage?: string;
+  thumbnailImage?: string;
+  views?: number;
+  orderNowBehavior?: string;
 }
 
 export interface BranchPrice {

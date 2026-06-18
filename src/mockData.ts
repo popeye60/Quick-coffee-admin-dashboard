@@ -505,15 +505,15 @@ export const INITIAL_ORDERS: Order[] = [
 ];
 
 export const INITIAL_INGREDIENTS: Ingredient[] = [
-  { id: 'STK-001', name: 'Espresso Beans', type: 'Bean', status: 'In Stock', stockLevel: 85, unit: 'kg', branch: 'Central Plaza' },
-  { id: 'STK-002', name: 'Premium Milk', type: 'Ingredient', status: 'In Stock', stockLevel: 92, unit: 'liters', branch: 'Central Plaza' },
-  { id: 'STK-003', name: 'Dark Roast Beans', type: 'Bean', status: 'In Stock', stockLevel: 75, unit: 'kg', branch: 'Siam Square' },
-  { id: 'STK-004', name: 'Caramel Syrup', type: 'Ingredient', status: 'Low Stock', stockLevel: 25, unit: 'liters', branch: 'Siam Square' },
-  { id: 'STK-005', name: 'Vanilla Syrup', type: 'Ingredient', status: 'In Stock', stockLevel: 65, unit: 'liters', branch: 'Mega Bangna' },
-  { id: 'STK-006', name: 'Chocolate Sauce', type: 'Ingredient', status: 'Out of Stock', stockLevel: 0, unit: 'liters', branch: 'The Mall Korat' },
-  { id: 'STK-007', name: 'Paper Cups (Hot)', type: 'Packaging', status: 'In Stock', stockLevel: 94, unit: 'boxes', branch: 'Central Plaza' },
-  { id: 'STK-008', name: 'Paper Cups (Cold)', type: 'Packaging', status: 'Low Stock', stockLevel: 18, unit: 'boxes', branch: 'Siam Square' },
-  { id: 'STK-009', name: 'Whipped Cream', type: 'Ingredient', status: 'In Stock', stockLevel: 88, unit: 'liters', branch: 'Mega Bangna' }
+  { id: 'STK-001', name: 'Espresso Beans', type: 'Bean', status: 'In Stock', stockLevel: 85, unit: 'kg', branch: 'Central Plaza', quantity: 8.5, lowThreshold: 5, criticalThreshold: 2, warehouseQty: 40 },
+  { id: 'STK-002', name: 'Premium Milk', type: 'Ingredient', status: 'In Stock', stockLevel: 92, unit: 'liters', branch: 'Central Plaza', quantity: 12, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 60 },
+  { id: 'STK-003', name: 'Dark Roast Beans', type: 'Bean', status: 'In Stock', stockLevel: 75, unit: 'kg', branch: 'Siam Square', quantity: 7, lowThreshold: 5, criticalThreshold: 2, warehouseQty: 35 },
+  { id: 'STK-004', name: 'Caramel Syrup', type: 'Ingredient', status: 'Low Stock', stockLevel: 25, unit: 'bottle', branch: 'Siam Square', quantity: 6, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 100 },
+  { id: 'STK-005', name: 'Vanilla Syrup', type: 'Ingredient', status: 'In Stock', stockLevel: 65, unit: 'bottle', branch: 'Mega Bangna', quantity: 9, lowThreshold: 6, criticalThreshold: 2, warehouseQty: 80 },
+  { id: 'STK-006', name: 'Chocolate Sauce', type: 'Ingredient', status: 'Out of Stock', stockLevel: 0, unit: 'bottle', branch: 'The Mall Korat', quantity: 0, lowThreshold: 6, criticalThreshold: 2, warehouseQty: 45 },
+  { id: 'STK-007', name: 'Paper Cups (Hot)', type: 'Packaging', status: 'In Stock', stockLevel: 94, unit: 'boxes', branch: 'Central Plaza', quantity: 120, lowThreshold: 40, criticalThreshold: 15, warehouseQty: 150 },
+  { id: 'STK-008', name: 'Paper Cups (Cold)', type: 'Packaging', status: 'Low Stock', stockLevel: 18, unit: 'boxes', branch: 'Siam Square', quantity: 18, lowThreshold: 40, criticalThreshold: 15, warehouseQty: 150 },
+  { id: 'STK-009', name: 'Whipped Cream', type: 'Ingredient', status: 'In Stock', stockLevel: 88, unit: 'liters', branch: 'Mega Bangna', quantity: 14, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 50 }
 ];
 
 export const INITIAL_COUPONS: Coupon[] = [

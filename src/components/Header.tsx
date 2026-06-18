@@ -45,13 +45,13 @@ export default function Header({
       case 'Payment Verification': return t('nav.payment_verification');
       case 'Stock Management': return t('nav.stock_management');
       case 'Menu & Pricing': return t('nav.menu_pricing');
+      case 'Warehouse': return t('nav.warehouse');
       case 'Coupons': return t('nav.promotions') || 'Coupons';
       case 'Branches': return t('nav.branches');
       case 'Members': return t('nav.members');
       case 'Promotions': return t('nav.promotions');
       case 'Reports': return t('nav.reports');
       case 'Staff Management': return t('nav.staff_management');
-      case 'Settings': return t('nav.settings');
       case 'Notification Center': return t('nav.notification_center');
       default: return tab;
     }

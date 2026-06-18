@@ -95,18 +95,30 @@ export default function DashboardView({
   const branchFilteredOrders = selectedBranch === 'All Branches'
     ? orders
     : orders.filter(o => o.branch === selectedBranch);
+  const isConfirmedQueuedOrder = (o: Order) =>
+    !!String(o.queueNo || '').trim() &&
+    o.paymentStatus === 'Paid' &&
+    ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
+  const isSystemCancelled = (o: Order) =>
+    ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(o.status) && (
+      o.status === 'Auto Cancelled' ||
+      o.cancelledBy === 'System' ||
+      o.cancellationReason === 'Customer Did Not Pay' ||
+      o.cancellationReason === 'Payment Timeout' ||
+      o.cancellationReason === 'Payment Expired' ||
+      o.cancellationReason === 'Payment Verification Failed'
+    );
+  const queuedOrders = branchFilteredOrders.filter(isConfirmedQueuedOrder);
 
   // Dynamic stat calculators (KPI Cards validation)
-  const totalOrdersCount = branchFilteredOrders.length;
+  const totalOrdersCount = queuedOrders.filter(o => o.status !== 'Completed').length;
   
-  const revenueTotal = branchFilteredOrders
-    .filter(o => o.status !== 'Cancelled' && o.status !== 'Pending Payment')
+  const revenueTotal = queuedOrders
     .reduce((sum, o) => sum + o.amount, 0);
 
-  const pendingCount = branchFilteredOrders.filter(o => o.status === 'Pending Payment').length;
-  const preparingCount = branchFilteredOrders.filter(o => o.status === 'Preparing').length;
-  const readyCount = branchFilteredOrders.filter(o => o.status === 'Ready For Pickup').length;
-  const completedCount = branchFilteredOrders.filter(o => o.status === 'Completed').length;
+  const preparingCount = queuedOrders.filter(o => o.status === 'Preparing' || o.status === 'Paid').length;
+  const readyCount = queuedOrders.filter(o => o.status === 'Ready For Pickup' || o.status === 'Queue Called').length;
+  const completedCount = queuedOrders.filter(o => o.status === 'Completed').length;
 
   const lowStockCount = ingredients
     .filter(i => (selectedBranch === 'All Branches' ? true : i.branch === selectedBranch))
@@ -173,7 +185,8 @@ export default function DashboardView({
   const pendingPaymentVerificationCount = totalPendingBacklog;
 
   // Cancellation & refund metrics
-  const cancelledCount = branchFilteredOrders.filter(o => o.status === 'Cancelled').length;
+  const autoCancelledCount = branchFilteredOrders.filter(isSystemCancelled).length;
+  const staffCancelledCount = branchFilteredOrders.filter(o => ['Cancelled', 'Cancelled by Staff'].includes(o.status) && !isSystemCancelled(o)).length;
   const refundPendingCount = branchFilteredOrders.filter(o => o.refundStatus === 'Refund Pending').length;
   const refundCompletedCount = branchFilteredOrders.filter(o => o.refundStatus === 'Refund Completed').length;
 
@@ -198,7 +211,7 @@ export default function DashboardView({
     },
     {
       id: 'stat-orders',
-      title: language === 'TH' ? 'คำสั่งซื้อวันนี้' : 'Orders Today',
+      title: language === 'TH' ? 'คิวที่ยืนยันแล้วทั้งหมด' : 'Total Active Queued Orders',
       value: totalOrdersCount,
       change: '+18.2%',
       isPositive: true,
@@ -236,6 +249,16 @@ export default function DashboardView({
       bgColor: 'bg-green-50/30 border-green-100'
     },
     {
+      id: 'stat-completed',
+      title: language === 'TH' ? 'ส่งมอบสำเร็จ' : 'Completed Orders',
+      value: completedCount,
+      change: '+9.4%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'เฉพาะคิวที่ชำระเงินแล้ว' : 'paid queued orders only',
+      icon: <CheckCircle size={18} className="text-zinc-500" />,
+      bgColor: 'bg-stone-50 border-stone-200'
+    },
+    {
       id: 'stat-low-stock',
       title: language === 'TH' ? 'วัตถุดิบใกล้วิกฤต' : 'Critical Stock Alerts',
       value: lowStockCount,
@@ -245,13 +268,22 @@ export default function DashboardView({
       bgColor: lowStockCount > 0 ? 'bg-orange-50/40 border-orange-200' : 'bg-stone-50 border-stone-200'
     },
     {
-      id: 'stat-cancelled',
-      title: language === 'TH' ? 'ยกเลิกวันนี้' : 'Cancelled Today',
-      value: cancelledCount,
-      status: cancelledCount > 0 ? (language === 'TH' ? 'ตรวจสอบ' : 'Review') : (language === 'TH' ? 'ไม่มี' : 'None'),
-      isAlert: cancelledCount > 0,
-      icon: <X size={18} className={cancelledCount > 0 ? 'text-red-500' : 'text-zinc-400'} />,
-      bgColor: cancelledCount > 0 ? 'bg-red-50/40 border-red-200' : 'bg-stone-50 border-stone-200'
+      id: 'stat-auto-cancelled',
+      title: language === 'TH' ? 'ยกเลิกอัตโนมัติ' : 'Auto Cancelled Orders',
+      value: autoCancelledCount,
+      status: autoCancelledCount > 0 ? (language === 'TH' ? 'ตรวจสอบการชำระเงิน' : 'Payment review') : (language === 'TH' ? 'ไม่มี' : 'None'),
+      isAlert: autoCancelledCount > 0,
+      icon: <X size={18} className={autoCancelledCount > 0 ? 'text-red-500' : 'text-zinc-400'} />,
+      bgColor: autoCancelledCount > 0 ? 'bg-red-50/40 border-red-200' : 'bg-stone-50 border-stone-200'
+    },
+    {
+      id: 'stat-staff-cancelled',
+      title: language === 'TH' ? 'ยกเลิกโดยพนักงาน' : 'Staff Cancelled Orders',
+      value: staffCancelledCount,
+      status: staffCancelledCount > 0 ? (language === 'TH' ? 'ตรวจสอบงานหน้าร้าน' : 'Ops review') : (language === 'TH' ? 'ไม่มี' : 'None'),
+      isAlert: staffCancelledCount > 0,
+      icon: <X size={18} className={staffCancelledCount > 0 ? 'text-orange-500' : 'text-zinc-400'} />,
+      bgColor: staffCancelledCount > 0 ? 'bg-orange-50/40 border-orange-200' : 'bg-stone-50 border-stone-200'
     },
     {
       id: 'stat-refund-pending',
@@ -479,9 +511,9 @@ export default function DashboardView({
   const computeDayTotals = (branch: string) => {
     const scoped = branch === 'All Branches' ? orders : orders.filter(o => o.branch === branch);
     const revenue = scoped
-      .filter(o => o.status !== 'Cancelled' && o.status !== 'Pending Payment')
+      .filter(isConfirmedQueuedOrder)
       .reduce((s, o) => s + o.amount, 0);
-    return { revenue, orders: scoped.length };
+    return { revenue, orders: scoped.filter(isConfirmedQueuedOrder).length };
   };
 
   const sumSummary = (pts: AnalyticsPoint[]): AnalyticsSummary => {
@@ -605,7 +637,7 @@ export default function DashboardView({
   const topLowStock = inventoryAlertItems.slice(0, 3);
 
   // Compact campaign summary
-  const activePromotionsCount = promotions.filter(p => p.status === 'Active').length;
+  const activePromotionsCount = promotions.filter(p => p.status === 'Active' || p.status === 'Published').length;
 
   // Per-branch coupon redemption split (coupons are global; derive a deterministic branch share)
   const BRANCH_COUPON_WEIGHT: Record<string, number> = {

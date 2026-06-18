@@ -15,7 +15,7 @@ interface MenuPricingViewProps {
   staffAssignedBranch: string;
 }
 
-const BRANCHES = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
+const BRANCHES: Exclude<Branch, 'All Branches'>[] = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
 const SPECIAL_TYPES: SpecialMenuType[] = ['Seasonal', 'Limited Edition', 'New Arrival', 'Recommended', 'Promotion'];
 
 const uid = (p: string) => `${p}-${Math.random().toString(36).slice(2, 8)}`;
@@ -54,6 +54,14 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
   const [dragOver, setDragOver] = useState(false);
 
   const isSpecial = (i: CoffeeItem) => !!i.special;
+  const specialAvailableBranches = (i: CoffeeItem) => i.special?.availableBranches === undefined ? BRANCHES : i.special.availableBranches;
+  const isVisibleForBranch = (i: CoffeeItem, branch: string) => {
+    if (i.status !== 'Available') return false;
+    if (i.special) return specialAvailableBranches(i).includes(branch as Exclude<Branch, 'All Branches'>);
+    const branchEnabled = i.branchAvailable?.[branch] ?? true;
+    return branchEnabled;
+  };
+  const isReadyToSell = (i: CoffeeItem) => i.status === 'Available';
 
   const matchesTab = (i: CoffeeItem) => {
     if (tab === 'All') return true;
@@ -67,7 +75,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
     .filter(i => !i.archived)
     .filter(matchesTab)
     .filter(i => statusFilter === 'All' || i.status === statusFilter)
-    .filter(i => branchFilter === 'All Branches' || (i.branchAvailable?.[branchFilter] ?? true))
+    .filter(i => branchFilter === 'All Branches' || isVisibleForBranch(i, branchFilter))
     .sort((a, b) => (a.displayOrder ?? 99) - (b.displayOrder ?? 99));
 
   // ── Persistence helpers ─────────────────────────────────────────────────────
@@ -88,6 +96,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
     if (!i.name.trim()) e.push(t('ชื่อเมนู', 'Menu Name'));
     if (!i.price || i.price <= 0) e.push(t('ราคา', 'Base Price'));
     if (!i.coverImage && !i.image) e.push(t('รูปภาพ', 'Product Image'));
+    if (i.special && specialAvailableBranches(i).length === 0) e.push(t('สาขาที่เปิดขายเมนูพิเศษ', 'Special Menu Available Branches'));
     return e;
   };
   const saveDraft = () => { if (editing) { upsert(editing); close(); } };
@@ -95,7 +104,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
     if (!editing) return;
     const e = validate(editing);
     if (e.length) { setErrors(e); return; }
-    const rec = editing.special ? { ...editing, special: { ...editing.special, publish: 'Published' as const, active: true } } : editing;
+    const rec = editing.special ? { ...editing, special: { ...editing.special, availableBranches: specialAvailableBranches(editing), publish: 'Published' as const, active: true } } : editing;
     upsert(rec); close();
   };
 
@@ -123,14 +132,20 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
   const toggleSpecial = () => setEditing(p => {
     if (!p) return p;
     if (p.special) return { ...p, special: undefined };
-    return { ...p, special: { type: 'Recommended', priority: 1, active: true, publish: 'Draft' } as SpecialMenuMeta };
+    return { ...p, special: { type: 'Recommended', priority: 1, active: true, publish: 'Draft', availableBranches: BRANCHES } as SpecialMenuMeta };
   });
   const updSpecial = (patch: Partial<SpecialMenuMeta>) => setEditing(p => p && p.special ? { ...p, special: { ...p.special, ...patch } } : p);
+  const toggleSpecialBranch = (branch: Exclude<Branch, 'All Branches'>) => setEditing(p => {
+    if (!p?.special) return p;
+    const selected = specialAvailableBranches(p);
+    const next = selected.includes(branch) ? selected.filter(b => b !== branch) : [...selected, branch];
+    return { ...p, special: { ...p.special, availableBranches: next } };
+  });
 
-  const statusStyle = (s: CoffeeItem['status']) =>
+  const availabilityStyle = (s: CoffeeItem['status']) =>
     s === 'Available' ? 'bg-emerald-50 text-emerald-700' : s === 'Out of Stock' ? 'bg-red-50 text-red-600' : 'bg-zinc-100 text-zinc-500';
-  const statusLabel = (s: CoffeeItem['status']) =>
-    s === 'Available' ? t('พร้อมขาย', 'Available') : s === 'Out of Stock' ? t('ของหมด', 'Out of Stock') : t('ซ่อน', 'Hidden');
+  const availabilityLabel = (s: CoffeeItem['status']) =>
+    s === 'Available' ? t('พร้อมขาย', 'Ready to Sell') : t('ไม่พร้อมขาย', 'Not Ready to Sell');
   const catLabel = (c: string) => c === 'Coffee' ? t('กาแฟ', 'Coffee') : c === 'Beverage' ? t('เครื่องดื่ม', 'Non-Coffee') : t('เบเกอรี่', 'Bakery');
 
   const tabs = [
@@ -177,8 +192,8 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
         </select>
         <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className="text-[11px] font-semibold py-1.5 px-2.5 bg-white border border-[#E6DFD9] rounded-lg text-zinc-600 cursor-pointer">
           <option value="All">{t('ทุกสถานะ', 'All Status')}</option>
-          <option value="Available">{t('พร้อมขาย', 'Available')}</option>
-          <option value="Out of Stock">{t('ของหมด', 'Out of Stock')}</option>
+          <option value="Available">{t('พร้อมขาย', 'Ready to Sell')}</option>
+          <option value="Out of Stock">{t('ไม่พร้อมขาย', 'Not Ready to Sell')}</option>
           <option value="Hidden">{t('ซ่อน', 'Hidden')}</option>
         </select>
         <span className="text-[10px] font-mono text-zinc-400 ml-auto uppercase tracking-wider">{items.length} {t('เมนู', 'items')}</span>
@@ -189,12 +204,12 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
         {items.length === 0 ? (
           <div className="col-span-full p-12 text-center bg-white border border-dashed border-[#E6DFD9] rounded-2xl text-zinc-400 text-sm">{t('ไม่พบเมนู', 'No menu items found.')}</div>
         ) : items.map(item => (
-          <div key={item.id} id={`menu-card-${item.id}`} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col ${item.status === 'Hidden' ? 'opacity-60' : ''} border-[#E6DFD9]`}>
+          <div key={item.id} id={`menu-card-${item.id}`} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col ${!isReadyToSell(item) ? 'opacity-70' : ''} border-[#E6DFD9]`}>
             {/* Cover */}
             <div className="h-28 bg-[#FDF1E6] flex items-center justify-center text-5xl relative overflow-hidden">
               {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <span>{item.image}</span>}
               {item.special && <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-1"><Sparkles size={9} />{t('เมนูพิเศษ', 'Limited Time')}</span>}
-              <span className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${statusStyle(item.status)}`}>{statusLabel(item.status)}</span>
+              <span className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${availabilityStyle(item.status)}`}>{availabilityLabel(item.status)}</span>
             </div>
             <div className="p-3.5 flex-1 flex flex-col">
               <div className="flex items-start justify-between gap-2">
@@ -209,6 +224,12 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                 {item.addonGroups && item.addonGroups.length > 0 && <span className="bg-stone-100 px-1.5 py-0.5 rounded">{item.addonGroups.length} {t('กลุ่มเสริม', 'add-on groups')}</span>}
                 {item.branchPrices && Object.keys(item.branchPrices).length > 0 && <span className="bg-stone-100 px-1.5 py-0.5 rounded">{t('ราคาแยกสาขา', 'branch pricing')}</span>}
               </div>
+              {item.special && (
+                <div className="mt-2 rounded-lg border border-rose-100 bg-rose-50/50 px-2 py-1.5">
+                  <p className="text-[9px] uppercase font-black text-rose-500">{t('สาขาที่ขายเมนูพิเศษ', 'Special available branches')}</p>
+                  <p className="text-[10px] text-zinc-600 line-clamp-2">{specialAvailableBranches(item).length ? specialAvailableBranches(item).join(', ') : t('ยังไม่ได้เลือกสาขา', 'No branches selected')}</p>
+                </div>
+              )}
 
               {/* Actions — Edit (primary) + Delete (secondary) only */}
               {isAdmin && (
@@ -284,14 +305,15 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                     <input type="number" className={inputCls} value={editing.price} onChange={e => setField('price', Number(e.target.value))} /></label>
                 </div>
                 <div className="grid grid-cols-2 gap-2">
-                  <label className="block"><span className="text-[10px] text-zinc-500">{t('สถานะ', 'Status')}</span>
-                    <select className={inputCls} value={editing.status} onChange={e => setField('status', e.target.value as CoffeeItem['status'])}>
-                      <option value="Available">{t('พร้อมขาย', 'Available')}</option>
-                      <option value="Out of Stock">{t('ของหมด', 'Out of Stock')}</option>
-                      <option value="Hidden">{t('ซ่อน', 'Hidden')}</option>
-                    </select></label>
                   <label className="block"><span className="text-[10px] text-zinc-500">{t('ลำดับการแสดง', 'Display Order')}</span>
                     <input type="number" className={inputCls} value={editing.displayOrder ?? 99} onChange={e => setField('displayOrder', Number(e.target.value))} /></label>
+                  <label className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 ${isReadyToSell(editing) ? 'bg-emerald-50 border-emerald-200' : 'bg-zinc-50 border-zinc-200'}`}>
+                    <span>
+                      <span className="block text-[10px] font-bold text-zinc-600">{isReadyToSell(editing) ? t('พร้อมขาย', 'Ready to Sell') : t('ไม่พร้อมขาย', 'Not Ready to Sell')}</span>
+                      <span className="block text-[9px] text-zinc-400">{t('ควบคุมการสั่งซื้อเมนูนี้ทั้งระบบ', 'Controls whether this menu can be ordered.')}</span>
+                    </span>
+                    <input type="checkbox" checked={isReadyToSell(editing)} onChange={e => setField('status', e.target.checked ? 'Available' : 'Hidden')} />
+                  </label>
                 </div>
                 <label className="block"><span className="text-[10px] text-zinc-500">{t('คำอธิบาย', 'Description')}</span>
                   <textarea className={`${inputCls} resize-none`} rows={2} value={editing.description || ''} onChange={e => setField('description', e.target.value)} /></label>
@@ -341,23 +363,25 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
               </section>
 
               {/* Branch-specific settings */}
-              <section className="space-y-2">
-                <h4 className="font-bold text-xs text-[#2E2A25]">{t('ตั้งค่าราคา/สถานะแยกสาขา', 'Branch-specific Settings')}</h4>
-                <div className="border border-[#E6DFD9] rounded-xl bg-white divide-y divide-zinc-100">
-                  {BRANCHES.map(b => {
-                    const avail = editing.branchAvailable?.[b] ?? true;
-                    const price = editing.branchPrices?.[b];
-                    return (
-                      <div key={b} className="flex items-center gap-2 px-3 py-2">
-                        <button onClick={() => setField('branchAvailable', { ...editing.branchAvailable, [b]: !avail })} className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${avail ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-400'}`}>{avail ? t('ขาย', 'On') : t('ปิด', 'Off')}</button>
-                        <span className="flex-1 text-[11px] font-semibold text-zinc-700 truncate">{b}</span>
-                        <div className="flex items-center gap-0.5"><span className="text-[10px] text-zinc-400">฿</span>
-                          <input type="number" className="w-16 text-[11px] py-1 px-1.5 border border-[#E6DFD9] rounded font-mono" value={price ?? ''} placeholder={String(editing.price)} onChange={e => setField('branchPrices', { ...editing.branchPrices, [b]: e.target.value === '' ? undefined as unknown as number : Number(e.target.value) })} /></div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </section>
+              {!editing.special && (
+                <section className="space-y-2">
+                  <h4 className="font-bold text-xs text-[#2E2A25]">{t('ตั้งค่าราคา/สถานะแยกสาขา', 'Branch-specific Price / Status Settings')}</h4>
+                  <div className="border border-[#E6DFD9] rounded-xl bg-white divide-y divide-zinc-100">
+                    {BRANCHES.map(b => {
+                      const avail = editing.branchAvailable?.[b] ?? true;
+                      const price = editing.branchPrices?.[b];
+                      return (
+                        <div key={b} className="flex items-center gap-2 px-3 py-2">
+                          <button onClick={() => setField('branchAvailable', { ...editing.branchAvailable, [b]: !avail })} className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${avail ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-400'}`}>{avail ? t('ขาย', 'On') : t('ปิด', 'Off')}</button>
+                          <span className="flex-1 text-[11px] font-semibold text-zinc-700 truncate">{b}</span>
+                          <div className="flex items-center gap-0.5"><span className="text-[10px] text-zinc-400">฿</span>
+                            <input type="number" className="w-16 text-[11px] py-1 px-1.5 border border-[#E6DFD9] rounded font-mono" value={price ?? ''} placeholder={String(editing.price)} onChange={e => setField('branchPrices', { ...editing.branchPrices, [b]: e.target.value === '' ? undefined as unknown as number : Number(e.target.value) })} /></div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
 
               {/* Special menu */}
               <section className="space-y-2">
@@ -381,10 +405,28 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                       <label className="block"><span className="text-[10px] text-zinc-500">{t('วันสิ้นสุด', 'End Date')}</span>
                         <input type="date" className={inputCls} value={editing.special.endDate || ''} onChange={e => updSpecial({ endDate: e.target.value })} /></label>
                     </div>
-                    <div className="flex items-center gap-3 text-[10px] font-semibold text-zinc-600">
-                      <label className="flex items-center gap-1"><input type="checkbox" checked={editing.special.active} onChange={e => updSpecial({ active: e.target.checked })} />{t('ใช้งาน', 'Active')}</label>
-                      <label className="flex items-center gap-1"><input type="checkbox" checked={!!editing.special.featured} onChange={e => updSpecial({ featured: e.target.checked })} />{t('โชว์หน้าแรก', 'Feature on Home')}</label>
-                      <span className={`ml-auto px-2 py-0.5 rounded-full font-bold ${editing.special.publish === 'Published' ? 'bg-emerald-100 text-emerald-800' : editing.special.publish === 'Expired' ? 'bg-zinc-200 text-zinc-500' : 'bg-zinc-100 text-zinc-500'}`}>{editing.special.publish}</span>
+                    <div className="space-y-1.5">
+                      <div>
+                        <p className="text-[10px] font-bold text-zinc-600">{t('สาขาที่เปิดขาย', 'Available Branches')} *</p>
+                        <p className="text-[9px] text-zinc-400">{t('ลูกค้าจะเห็นและสั่งเมนูนี้ได้เฉพาะสาขาที่เลือก', 'Customers can see and order this special menu only in selected branches.')}</p>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                        {BRANCHES.map(branch => {
+                          const active = specialAvailableBranches(editing).includes(branch);
+                          return (
+                            <label key={branch} className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px] font-semibold ${active ? 'bg-white border-[#8B6B4F] text-zinc-800' : 'bg-white/60 border-rose-100 text-zinc-500'}`}>
+                              <input type="checkbox" checked={active} onChange={() => toggleSpecialBranch(branch)} />
+                              {branch}
+                            </label>
+                          );
+                        })}
+                      </div>
+                      {specialAvailableBranches(editing).length === 0 && (
+                        <p className="text-[10px] text-red-600 font-semibold">{t('ต้องเลือกอย่างน้อย 1 สาขา', 'Select at least one branch.')}</p>
+                      )}
+                    </div>
+                    <div className="flex justify-end text-[10px] font-semibold text-zinc-600">
+                      <span className={`px-2 py-0.5 rounded-full font-bold ${editing.special.publish === 'Published' ? 'bg-emerald-100 text-emerald-800' : editing.special.publish === 'Expired' ? 'bg-zinc-200 text-zinc-500' : 'bg-zinc-100 text-zinc-500'}`}>{editing.special.publish}</span>
                     </div>
                   </div>
                 )}

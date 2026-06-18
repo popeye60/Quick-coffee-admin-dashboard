@@ -1,16 +1,16 @@
 export const en = {
   nav: {
     dashboard: "Dashboard",
-    orders: "Orders",
+    orders: "Order Management",
     payment_verification: "Payment Verification",
     stock_management: "Daily Stock Count",
     branches: "Branch Management",
     menu_pricing: "Menu & Pricing",
+    warehouse: "Central Warehouse",
     members: "Members",
     promotions: "Promotions",
     reports: "Reports",
     staff_management: "Staff Management",
-    settings: "Settings",
     notification_center: "Notification Center",
     audit_log: "Audit Log"
   },
@@ -48,8 +48,8 @@ export const en = {
     items_sold: "items"
   },
   orders: {
-    title: "Orders Dispatch Queue",
-    subtitle: "Monitor online ordering queues, assign status adjustments on-the-fly.",
+    title: "Order Management",
+    subtitle: "Manage confirmed paid orders after queue numbers are generated.",
     id: "Order ID",
     customer: "Customer",
     branch: "Branch",
@@ -225,18 +225,6 @@ export const en = {
     operating_efficiency: "Operating Efficiency",
     customer_repeat_rate: "User Repeat Rate",
     printing_alert: "Connecting to Thermal Serial Printer..."
-  },
-  settings: {
-    title: "Enterprise Settings Console",
-    subtitle: "Configure global parameters, change system parameters, visual templates, and logs.",
-    general_settings: "General Settings",
-    language: "System Language",
-    theme: "Pre-set UI Theme Styling",
-    notifications: "Notification Dispatch Gateways",
-    app_id: "Portal Deployment ID",
-    branch_lock: "Assigned Staff Branch Lock",
-    admin_mode: "Admin Mode Access Gateways",
-    save_settings: "Save Administrative Preferences"
   },
   common: {
     success_save: "Saved successfully",

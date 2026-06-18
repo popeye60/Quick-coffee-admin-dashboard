@@ -14,7 +14,6 @@ import {
   RotateCcw,
   Coffee,
   CheckCircle,
-  AlertTriangle
 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -38,9 +37,12 @@ interface OrdersViewProps {
 const PAYMENT_TIMEOUT_MIN = 10;
 
 const CANCELLATION_REASONS: CancellationReason[] = [
-  'Customer Did Not Pay',
+  'Ingredient Out of Stock',
+  'Equipment Unavailable',
+  'Store Temporarily Closed',
   'Customer Requested Cancellation',
-  'Wrong Order Selected',
+  'Incorrect Order Information',
+  'Store Unable to Fulfill',
   'Other',
 ];
 
@@ -49,6 +51,13 @@ const CANCELLATION_REASONS_TH: Record<CancellationReason, string> = {
   'Customer Requested Cancellation': 'ลูกค้าขอยกเลิก',
   'Wrong Order Selected': 'สั่งผิดรายการ',
   'Out of Stock': 'วัตถุดิบหมด',
+  'Ingredient Out of Stock': 'วัตถุดิบหมด',
+  'Equipment Unavailable': 'อุปกรณ์ไม่พร้อมใช้งาน',
+  'Store Temporarily Closed': 'ร้านปิดชั่วคราว',
+  'Incorrect Order Information': 'ข้อมูลคำสั่งซื้อไม่ถูกต้อง',
+  'Payment Timeout': 'หมดเวลาชำระเงิน',
+  'Payment Expired': 'เซสชันชำระเงินหมดอายุ',
+  'Payment Verification Failed': 'ตรวจสอบการชำระเงินไม่สำเร็จ',
   'Store Unable to Fulfill': 'ร้านไม่สามารถให้บริการได้',
   'Staff Error': 'ข้อผิดพลาดจากพนักงาน',
   'Other': 'อื่นๆ',
@@ -71,7 +80,7 @@ export default function OrdersView({
 }: OrdersViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All Statuses');
-  const [queueTab, setQueueTab] = useState<'all' | 'failed' | 'Pending Payment' | 'Preparing' | 'Ready For Pickup' | 'Completed'>('all');
+  const [queueTab, setQueueTab] = useState<'all' | 'Preparing' | 'Ready For Pickup' | 'Completed'>('all');
   const [exportSuccess, setExportSuccess] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
   // Cancellation form state
@@ -84,10 +93,28 @@ export default function OrdersView({
   const { language, formatCurrency } = useLanguage();
 
   const activeBranch = roleMode === 'Staff' ? staffAssignedBranch : selectedBranch;
+  const isCancelledStatus = (o: Order) => ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(o.status);
+  const isSystemCancelled = (o: Order) =>
+    isCancelledStatus(o) && (
+      o.status === 'Auto Cancelled' ||
+      o.cancelledBy === 'System' ||
+      o.cancellationReason === 'Customer Did Not Pay' ||
+      o.cancellationReason === 'Payment Timeout' ||
+      o.cancellationReason === 'Payment Expired' ||
+      o.cancellationReason === 'Payment Verification Failed'
+    );
+  const hasValidQueue = (o: Order) => !!String(o.queueNo || '').trim();
+  const isConfirmedQueuedOrder = (o: Order) =>
+    hasValidQueue(o) &&
+    o.paymentStatus === 'Paid' &&
+    ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
+  const workflowOrders = roleMode === 'Staff' ? orders.filter(isConfirmedQueuedOrder) : orders;
 
-  const filteredOrders = orders.filter((order) => {
+  const filteredOrders = workflowOrders.filter((order) => {
     if (activeBranch !== 'All Branches' && order.branch !== activeBranch) return false;
-    if (statusFilter !== 'All Statuses' && order.status !== statusFilter) return false;
+    if (statusFilter === 'Auto Cancelled' && !isSystemCancelled(order)) return false;
+    if (statusFilter === 'Cancelled by Staff' && !(isCancelledStatus(order) && !isSystemCancelled(order))) return false;
+    if (!['All Statuses', 'Auto Cancelled', 'Cancelled by Staff'].includes(statusFilter) && order.status !== statusFilter) return false;
     const query = searchTerm.toLowerCase();
     if (
       query &&
@@ -99,20 +126,21 @@ export default function OrdersView({
     return true;
   });
 
-  const selectedOrder = orders.find(o => o.id === selectedOrderId);
+  const selectedOrder = workflowOrders.find(o => o.id === selectedOrderId);
   const tr = (th: string, en: string) => (language === 'TH' ? th : en);
 
   // ── SINGLE SOURCE OF TRUTH for an order's displayed status ───────────────────
   // Table badge, Staff card, and Side Panel all read from here so they never disagree.
   interface OrderDisplay { label: string; cls: string; payment: string; queue: string; }
   const deriveStatus = (o: Order): OrderDisplay => {
-    const autoCancelled = o.status === 'Cancelled' && o.cancellationReason === 'Customer Did Not Pay';
-    if (o.status === 'Cancelled') {
+    if (isCancelledStatus(o)) {
+      const autoCancelled = isSystemCancelled(o);
+      const staffCancelled = !autoCancelled;
       return {
-        label: autoCancelled ? tr('ยกเลิกอัตโนมัติ', 'Auto-cancelled') : tr('ยกเลิกแล้ว', 'Cancelled'),
+        label: autoCancelled ? tr('ยกเลิกอัตโนมัติ', 'Auto Cancelled') : tr('ยกเลิกโดยพนักงาน', 'Cancelled by Staff'),
         cls: 'bg-red-50 text-red-600 border border-red-200/60',
-        payment: o.paymentStatus === 'Paid' ? tr('สำเร็จ', 'Success') : tr('ยกเลิก', 'Cancelled'),
-        queue: o.queueNo ? tr('สร้างคิวแล้ว', 'Created') : tr('ยังไม่สร้างคิว', 'Not created'),
+        payment: staffCancelled ? tr('ชำระเงินแล้ว', 'Paid') : o.paymentStatus === 'Failed' ? tr('ล้มเหลว', 'Failed') : tr('ยกเลิก', 'Cancelled'),
+        queue: staffCancelled ? tr('ยกเลิกโดยพนักงาน', 'Cancelled by Staff') : o.queueNo ? tr('สร้างคิวแล้ว', 'Created') : tr('ยังไม่สร้างคิว', 'Not created'),
       };
     }
     // Rule 4: a FAILED payment never shows "รอชำระเงิน" in the table
@@ -132,27 +160,21 @@ export default function OrdersView({
     return <span className={`inline-block whitespace-nowrap px-2 py-0.5 rounded text-[10.5px] font-sans font-semibold tracking-wide ${d.cls}`}>{d.label}</span>;
   };
 
-  // ── Staff Queue Board (operational card list) ───────────────────────────────
-  const isPaidOrder = (o: Order) =>
-    o.paymentStatus === 'Paid' || ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
-
   // Uniform action-button size for every status (160×48, radius 12, 14px/600, single line, centered)
   const ACTION_BTN = 'w-40 h-12 rounded-xl text-sm font-semibold flex items-center justify-center gap-1.5 px-4 whitespace-nowrap transition-all shadow-xs';
 
-  // Priority: Pending Payment → Paid → Preparing → Ready → Completed
+  // Priority: Paid → Preparing → Ready → Completed
   const priorityOf = (o: Order) =>
-    ({ 'Pending Payment': 1, 'Paid': 2, 'Preparing': 3, 'Ready For Pickup': 4, 'Queue Called': 4, 'Completed': 5, 'Cancelled': 6 } as Record<string, number>)[o.status] ?? 9;
+    ({ 'Paid': 1, 'Preparing': 2, 'Ready For Pickup': 3, 'Queue Called': 3, 'Completed': 4, 'Cancelled': 9, 'Auto Cancelled': 9, 'Cancelled by Staff': 9, 'Pending Payment': 9 } as Record<string, number>)[o.status] ?? 9;
 
   const queueTabs = [
     { key: 'all', label: language === 'TH' ? 'ทั้งหมด' : 'All' },
-    { key: 'Pending Payment', label: language === 'TH' ? 'รอชำระเงิน' : 'Pending' },
     { key: 'Preparing', label: language === 'TH' ? 'กำลังเตรียม' : 'Preparing' },
     { key: 'Ready For Pickup', label: language === 'TH' ? 'พร้อมเสิร์ฟ' : 'Ready' },
     { key: 'Completed', label: language === 'TH' ? 'เสร็จสิ้น' : 'Done' },
   ] as const;
   const matchesTab = (o: Order, tab: string) => {
-    if (tab === 'all') return o.status !== 'Cancelled';
-    if (tab === 'Pending Payment') return o.status === 'Pending Payment';
+    if (tab === 'all') return isConfirmedQueuedOrder(o);
     if (tab === 'Preparing') return o.status === 'Preparing' || o.status === 'Paid'; // Paid orders await preparation
     return o.status === tab;
   };
@@ -174,7 +196,9 @@ export default function OrdersView({
       case 'Paid': return { border: 'border-l-emerald-400', chip: 'bg-emerald-100 text-emerald-900' };
       case 'Preparing': return { border: 'border-l-sky-400', chip: 'bg-sky-100 text-sky-900' };
       case 'Ready For Pickup': return { border: 'border-l-green-500', chip: 'bg-green-100 text-green-900' };
-      case 'Cancelled': return { border: 'border-l-red-500', chip: 'bg-red-100 text-red-700' };
+      case 'Cancelled':
+      case 'Auto Cancelled':
+      case 'Cancelled by Staff': return { border: 'border-l-red-500', chip: 'bg-red-100 text-red-700' };
       default: return { border: 'border-l-zinc-300', chip: 'bg-zinc-100 text-zinc-500' };
     }
   };
@@ -184,13 +208,26 @@ export default function OrdersView({
     if (o.status === 'Ready For Pickup') return { label: language === 'TH' ? 'ส่งมอบเสร็จสิ้น' : 'Complete', to: 'Completed', cls: 'bg-[#8B6B4F] hover:bg-[#70533C] text-white' };
     return null;
   };
+  const canStaffCancel = (o: Order) =>
+    roleMode === 'Staff' &&
+    hasValidQueue(o) &&
+    o.paymentStatus === 'Paid' &&
+    (o.status === 'Preparing' || o.status === 'Ready For Pickup');
 
   // ── Operational Status (moved here from the Dashboard) ──────────────────────
   const inBranch = (b: string) => activeBranch === 'All Branches' || b === activeBranch;
-  const opPreparing = orders.filter(o => inBranch(o.branch) && o.status === 'Preparing').length;
-  const opReady = orders.filter(o => inBranch(o.branch) && o.status === 'Ready For Pickup').length;
-  const opLowStock = ingredients.filter(i => inBranch(i.branch) && (i.status === 'Low Stock' || i.status === 'Out of Stock')).length;
+  const branchQueuedOrders = orders.filter(o => inBranch(o.branch) && isConfirmedQueuedOrder(o));
+  const opActiveQueued = branchQueuedOrders.filter(o => o.status !== 'Completed').length;
+  const opPreparing = branchQueuedOrders.filter(o => o.status === 'Preparing' || o.status === 'Paid').length;
+  const opReady = branchQueuedOrders.filter(o => o.status === 'Ready For Pickup' || o.status === 'Queue Called').length;
+  const opCompleted = branchQueuedOrders.filter(o => o.status === 'Completed').length;
   const opCards = [
+    {
+      title: language === 'TH' ? 'คิวที่ยืนยันแล้วทั้งหมด' : 'Total Active Queued Orders',
+      value: opActiveQueued,
+      icon: <CheckCircle size={18} className="text-[#8B6B4F]" />,
+      bg: 'bg-[#FDF1E6]/40 border-amber-100',
+    },
     {
       title: language === 'TH' ? 'กำลังเตรียมเครื่องดื่ม' : 'Preparing Orders',
       value: opPreparing,
@@ -204,10 +241,10 @@ export default function OrdersView({
       bg: 'bg-green-50/30 border-green-100',
     },
     {
-      title: language === 'TH' ? 'วัตถุดิบใกล้วิกฤต' : 'Critical Stock Alerts',
-      value: opLowStock,
-      icon: <AlertTriangle size={18} className={opLowStock > 0 ? 'text-orange-500' : 'text-zinc-400'} />,
-      bg: opLowStock > 0 ? 'bg-orange-50/40 border-orange-200' : 'bg-stone-50 border-stone-200',
+      title: language === 'TH' ? 'ส่งมอบสำเร็จ' : 'Completed Orders',
+      value: opCompleted,
+      icon: <CheckCircle size={18} className="text-zinc-500" />,
+      bg: 'bg-stone-50 border-stone-200',
     },
   ];
 
@@ -216,7 +253,7 @@ export default function OrdersView({
     setTimeout(() => setExportSuccess(false), 2500);
   };
 
-  const statusOptionsEn = ['All Statuses', 'Pending Payment', 'Paid', 'Preparing', 'Ready For Pickup', 'Completed', 'Cancelled'];
+  const statusOptionsEn = ['All Statuses', 'Pending Payment', 'Paid', 'Preparing', 'Ready For Pickup', 'Completed', 'Auto Cancelled', 'Cancelled by Staff'];
 
   const statusOptionsTh: Record<string, string> = {
     'All Statuses': 'ทั้งหมดทุกสถานะ',
@@ -225,7 +262,8 @@ export default function OrdersView({
     'Preparing': 'กำลังเตรียมเครื่องดื่ม',
     'Ready For Pickup': 'พร้อมให้บริการ',
     'Completed': 'ส่งมอบสำเร็จ',
-    'Cancelled': 'ยกเลิกสินค้า'
+    'Auto Cancelled': 'ยกเลิกอัตโนมัติ',
+    'Cancelled by Staff': 'ยกเลิกโดยพนักงาน'
   };
 
   const timelineLabelsTh: Record<string, string> = {
@@ -236,16 +274,29 @@ export default function OrdersView({
     'Completed': 'ส่งมอบลูกค้า'
   };
 
+  const cancellationReasonLabel = (reason: CancellationReason) => {
+    if (language === 'TH') return CANCELLATION_REASONS_TH[reason];
+    return ({
+      'Ingredient Out of Stock': 'Ingredient out of stock',
+      'Equipment Unavailable': 'Equipment unavailable',
+      'Customer Requested Cancellation': 'Customer requested cancellation',
+      'Incorrect Order Information': 'Wrong order information',
+      'Store Unable to Fulfill': 'Store issue',
+      Other: 'Other',
+    } as Partial<Record<CancellationReason, string>>)[reason] || reason;
+  };
+
   // ─── Workflow Action Block (reused in Staff panel) ──────────────────────────
   const WorkflowActions = ({ order }: { order: Order }) => {
     // Already cancelled
-    if (order.status === 'Cancelled') return null;
+    if (isCancelledStatus(order)) return null;
 
-    // Inline cancellation form (reason selection) — available for any cancellable order
+    // Cancellation confirmation modal — available only for cancellable queued orders.
     if (showCancelForm) {
       const paidOrder = order.paymentStatus === 'Paid';
       return (
-        <div className="space-y-3 p-3 bg-red-50 border border-red-200 rounded-xl">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-4" onClick={() => { setShowCancelForm(false); setCancelReason(''); setCancelNote(''); }}>
+        <div className="w-full max-w-sm space-y-3 p-4 bg-red-50 border border-red-200 rounded-xl shadow-2xl" onClick={e => e.stopPropagation()}>
           <div className="flex items-center justify-between">
             <p className="font-sans text-[11px] font-bold text-red-800 flex items-center gap-1.5">
               <AlertCircle size={13} />
@@ -275,7 +326,7 @@ export default function OrdersView({
             >
               <option value="">{language === 'TH' ? '— เลือกเหตุผล —' : '— Select reason —'}</option>
               {CANCELLATION_REASONS.map(r => (
-                <option key={r} value={r}>{language === 'TH' ? CANCELLATION_REASONS_TH[r] : r}</option>
+                <option key={r} value={r}>{cancellationReasonLabel(r)}</option>
               ))}
             </select>
           </div>
@@ -295,9 +346,9 @@ export default function OrdersView({
 
           <button
             id="confirm-cancel-order-btn"
-            disabled={!cancelReason}
+            disabled={!cancelReason || (cancelReason === 'Other' && !cancelNote.trim())}
             onClick={() => {
-              if (!cancelReason) return;
+              if (!cancelReason || (cancelReason === 'Other' && !cancelNote.trim())) return;
               cancelOrderWithReason(order.id, cancelReason as CancellationReason, cancelNote);
               setShowCancelForm(false);
               setCancelReason('');
@@ -307,6 +358,7 @@ export default function OrdersView({
           >
             {language === 'TH' ? 'ยืนยันยกเลิกออเดอร์' : 'Confirm Cancellation'}
           </button>
+        </div>
         </div>
       );
     }
@@ -389,8 +441,8 @@ export default function OrdersView({
           </button>
         )}
 
-        {/* Cancel — opens form for paid orders */}
-        {order.status !== 'Completed' && (
+        {/* Staff can cancel only active queued preparation orders. */}
+        {canStaffCancel(order) && (
           <button
             id="workflow-cancel-btn"
             onClick={() => setShowCancelForm(true)}
@@ -421,7 +473,7 @@ export default function OrdersView({
           <h4 className="font-sans font-bold text-[10px] text-[#8B6B4F] uppercase tracking-wider">
             {language === 'TH' ? 'สถานะการดำเนินงาน' : 'Operational Status'}
           </h4>
-          <div className="grid grid-cols-3 gap-3.5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
             {opCards.map(card => (
               <div key={card.title} className={`p-3.5 rounded-xl border ${card.bg} bg-white flex items-center justify-between shadow-xs`}>
                 <div>
@@ -499,7 +551,7 @@ export default function OrdersView({
           {/* Summary count bar — Admin only */}
           {roleMode === 'Admin' && (
             <div className="flex items-center justify-between font-sans text-xs text-zinc-500 bg-stone-50 border border-[#E6DFD9] px-3.5 py-2.5 rounded-lg">
-              <span>{language === 'TH' ? 'พบคิวคัดกรองเครื่องดื่ม ' : 'Showing '}<strong className="text-zinc-700">{filteredOrders.length}</strong>{language === 'TH' ? ' รายการที่มีสิทธิ์แก้ไข' : ' available coffee queues'}</span>
+              <span>{language === 'TH' ? 'พบคิวออเดอร์ ' : 'Showing '}<strong className="text-zinc-700">{filteredOrders.length}</strong>{language === 'TH' ? ' รายการที่มีสิทธิ์แก้ไข' : ' order queues'}</span>
               <span className="font-mono text-[10px]">{language === 'TH' ? 'ยอดที่คัดสรร' : 'Filter Match Count'}</span>
             </div>
           )}
@@ -597,7 +649,7 @@ export default function OrdersView({
             {/* Queue cards */}
             {staffQueue.length === 0 ? (
               <div className="p-12 text-center bg-white border border-dashed border-[#E6DFD9] rounded-2xl">
-                <p className="text-sm text-zinc-400 font-sans">{language === 'TH' ? 'ไม่มีคิวในสถานะนี้' : 'No orders in this status'}</p>
+                <p className="text-sm text-zinc-400 font-sans">{language === 'TH' ? 'ไม่มีออเดอร์ที่ยืนยันและมีหมายเลขคิวในสถานะนี้' : 'No confirmed queued orders in this status'}</p>
               </div>
             ) : (
               <div className="space-y-3">
@@ -606,8 +658,6 @@ export default function OrdersView({
                   const action = nextQueueAction(order);
                   const itemsText = order.items.map(i => `${i.item.name} ×${i.qty}`).join(', ');
                   const isReady = order.status === 'Ready For Pickup';
-                  const isPending = order.status === 'Pending Payment';
-                  const left = minutesLeft(order);
                   // Ready For Pickup gets an oversized green queue chip for at-a-glance visibility
                   const chipSize = isReady ? 'w-24 h-24' : 'w-20 h-20';
                   const numSize = isReady ? 'text-4xl' : 'text-3xl';
@@ -632,7 +682,7 @@ export default function OrdersView({
                         )}
                       </div>
 
-                      {/* Minimal info: items · amount · time · status (+ pay countdown) */}
+                      {/* Minimal info: items · amount · time · status */}
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <p className="font-sans font-bold text-sm text-zinc-800 leading-snug line-clamp-1">{itemsText}</p>
@@ -642,24 +692,11 @@ export default function OrdersView({
                           <span className="text-[11px] font-mono text-zinc-400">⏱ {order.time}</span>
                           <StatusPill order={order} />
                         </div>
-                        {isPending && (
-                          <p className={`mt-1.5 inline-block text-[10.5px] font-bold px-2 py-0.5 rounded-full font-mono ${leftColor(left)}`}>
-                            {language === 'TH' ? `รอชำระอีก ${left} นาที` : `${left} min left to pay`}
-                          </p>
-                        )}
                       </div>
 
                       {/* Single primary action — uniform size for every status */}
                       <div className="shrink-0" onClick={e => e.stopPropagation()}>
-                        {isPending ? (
-                          <button
-                            id={`queue-recheck-${order.id}`}
-                            onClick={() => updateOrderStatus(order.id, 'Paid')}
-                            className={`${ACTION_BTN} bg-sky-600 hover:bg-sky-700 text-white`}
-                          >
-                            <RotateCcw size={15} /> {language === 'TH' ? 'ตรวจสอบอีกครั้ง' : 'Re-check'}
-                          </button>
-                        ) : action ? (
+                        {action ? (
                           <button
                             id={`queue-advance-${order.id}`}
                             onClick={() => updateOrderStatus(order.id, action.to)}
@@ -713,14 +750,10 @@ export default function OrdersView({
             <div className="px-4 py-3 text-white flex items-center justify-between shrink-0 bg-amber-950">
               <div>
                 <span className="font-sans text-[9px] text-[#EAD1A8] uppercase tracking-wider block font-medium">
-                  {selectedOrder.status === 'Pending Payment'
-                    ? (language === 'TH' ? 'รอยืนยันการชำระเงิน' : 'Awaiting Payment Confirmation')
-                    : (language === 'TH' ? 'หมายเลขคิวทำกาแฟ' : 'Coffee Queue No.')}
+                  {selectedOrder.queueNo || selectedOrder.originalQueueNo ? (language === 'TH' ? 'หมายเลขคิวออเดอร์' : 'Order Queue No.') : (language === 'TH' ? 'ยังไม่มีหมายเลขคิว' : 'No Queue Number')}
                 </span>
                 <span className="font-mono text-xl font-black tracking-wide leading-none">
-                  {selectedOrder.status === 'Pending Payment' || !selectedOrder.queueNo
-                    ? (language === 'TH' ? 'ยังไม่สร้างคิว' : 'No queue yet')
-                    : (language === 'TH' ? `คิว: Q-${selectedOrder.queueNo}` : `Q-${selectedOrder.queueNo}`)}
+                  {selectedOrder.queueNo || selectedOrder.originalQueueNo ? (language === 'TH' ? `คิว: Q-${selectedOrder.queueNo || selectedOrder.originalQueueNo}` : `Q-${selectedOrder.queueNo || selectedOrder.originalQueueNo}`) : '-'}
                 </span>
               </div>
               <button className="p-1 px-2 border border-white/20 hover:border-white/50 rounded flex items-center gap-1.5 text-[10px] font-sans font-semibold shrink-0">
@@ -788,7 +821,8 @@ export default function OrdersView({
                   </div>
                   {(() => {
                     const d = deriveStatus(selectedOrder);
-                    const paid = selectedOrder.paymentStatus === 'Paid';
+                    const staffCancelled = isCancelledStatus(selectedOrder) && !isSystemCancelled(selectedOrder);
+                    const paid = selectedOrder.paymentStatus === 'Paid' || staffCancelled;
                     const failed = selectedOrder.paymentStatus === 'Failed';
                     const hasQueue = !!selectedOrder.queueNo;
                     return (
@@ -822,16 +856,20 @@ export default function OrdersView({
               </div>
 
               {/* S6b: Cancellation & Refund info — only for cancelled orders */}
-              {selectedOrder.status === 'Cancelled' && selectedOrder.cancellationReason && (
+              {isCancelledStatus(selectedOrder) && selectedOrder.cancellationReason && (
                 <div className="px-4 py-3 border-b border-zinc-100 space-y-2.5">
                   <h4 className="font-mono text-[9px] text-red-600 uppercase tracking-widest font-extrabold">
                     {language === 'TH' ? 'รายละเอียดการยกเลิก' : 'Cancellation Details'}
                   </h4>
                   <div className="p-3 bg-red-50 border border-red-200 rounded-xl space-y-2 text-xs font-sans">
+                    <div className="flex justify-between items-center">
+                      <span className="text-zinc-500">{language === 'TH' ? 'ประเภทการยกเลิก:' : 'Cancellation Type:'}</span>
+                      <span className="font-semibold text-red-800">{language === 'TH' ? (isSystemCancelled(selectedOrder) ? 'ระบบ' : 'พนักงาน') : (isSystemCancelled(selectedOrder) ? 'System' : 'Staff')}</span>
+                    </div>
                     <div className="flex justify-between items-start gap-2">
-                      <span className="text-zinc-500 shrink-0">{language === 'TH' ? 'เหตุผล:' : 'Reason:'}</span>
+                      <span className="text-zinc-500 shrink-0">{language === 'TH' ? 'เหตุผลการยกเลิก:' : 'Cancellation Reason:'}</span>
                       <span className="font-semibold text-red-800 text-right">
-                        {language === 'TH' ? CANCELLATION_REASONS_TH[selectedOrder.cancellationReason] : selectedOrder.cancellationReason}
+                        {cancellationReasonLabel(selectedOrder.cancellationReason)}
                       </span>
                     </div>
                     {selectedOrder.cancellationNote && (
@@ -840,15 +878,27 @@ export default function OrdersView({
                         <span className="text-zinc-700 text-right">{selectedOrder.cancellationNote}</span>
                       </div>
                     )}
-                    {selectedOrder.cancelledBy && (
+                    {!isSystemCancelled(selectedOrder) && selectedOrder.cancelledBy && (
                       <div className="flex justify-between items-center">
-                        <span className="text-zinc-500">{language === 'TH' ? 'ยกเลิกโดย:' : 'Cancelled by:'}</span>
+                        <span className="text-zinc-500">{language === 'TH' ? 'ยกเลิกโดย:' : 'Cancelled By:'}</span>
                         <span className="font-semibold text-zinc-700">{selectedOrder.cancelledBy}</span>
                       </div>
                     )}
+                    {!isSystemCancelled(selectedOrder) && (
+                      <>
+                        <div className="flex justify-between items-center">
+                          <span className="text-zinc-500">{language === 'TH' ? 'หมายเลขคิวเดิม:' : 'Original Queue Number:'}</span>
+                          <span className="font-mono font-semibold text-zinc-700">{selectedOrder.originalQueueNo || selectedOrder.queueNo ? `Q-${selectedOrder.originalQueueNo || selectedOrder.queueNo}` : '-'}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-zinc-500">{language === 'TH' ? 'สถานะเดิม:' : 'Original Order Status:'}</span>
+                          <span className="font-semibold text-zinc-700">{selectedOrder.originalOrderStatus || '-'}</span>
+                        </div>
+                      </>
+                    )}
                     {selectedOrder.cancelledAt && (
                       <div className="flex justify-between items-center">
-                        <span className="text-zinc-500">{language === 'TH' ? 'วันเวลา:' : 'Date & Time:'}</span>
+                        <span className="text-zinc-500">{language === 'TH' ? 'เวลายกเลิก:' : 'Cancellation Time:'}</span>
                         <span className="font-mono text-[10px] text-zinc-600">{selectedOrder.cancelledAt}</span>
                       </div>
                     )}

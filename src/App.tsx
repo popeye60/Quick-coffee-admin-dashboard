@@ -14,8 +14,8 @@ import MenuPricingView from './components/MenuPricingView';
 import CouponsView from './components/CouponsView';
 import OtherViews from './components/OtherViews';
 import BranchPricingView from './components/BranchPricingView';
-import QueueDisplayView from './components/QueueDisplayView';
 import BranchManagementView from './components/BranchManagementView';
+import CentralWarehouseView from './components/CentralWarehouseView';
 import { 
   INITIAL_MENU_ITEMS, 
   INITIAL_ORDERS, 
@@ -28,6 +28,9 @@ import {
 } from './mockData';
 import { Order, OrderStatus, Ingredient, CoffeeItem, Coupon, Activity, Member, Staff, Promotion, Branch, BranchPrice, CancellationReason, RefundStatus } from './types';
 import { verifySlip, applyVerificationResult } from './services/paymentService';
+
+const ADMIN_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management', 'Branches', 'Menu & Pricing', 'Warehouse', 'Promotions', 'Coupons', 'Members', 'Staff Management', 'Reports', 'Audit Log'];
+const STAFF_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management'];
 
 export default function App() {
   // Navigation states
@@ -52,6 +55,8 @@ export default function App() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [branchPrices, setBranchPrices] = useState<BranchPrice[]>([]);
+  const [inventoryLoading, setInventoryLoading] = useState(true);
+  const [inventoryError, setInventoryError] = useState<string | null>(null);
 
   // Hydrate local states on load Mount
   useEffect(() => {
@@ -94,12 +99,28 @@ export default function App() {
     localStorage.setItem('qc_orders', JSON.stringify(loadedOrders));
 
     // Ingredients
+    setInventoryLoading(true);
+    setInventoryError(null);
     const localIng = localStorage.getItem('qc_ingredients');
-    if (localIng) {
-      setIngredients(JSON.parse(localIng));
-    } else {
-      setIngredients(INITIAL_INGREDIENTS);
-      localStorage.setItem('qc_ingredients', JSON.stringify(INITIAL_INGREDIENTS));
+    try {
+      if (localIng !== null) {
+        const parsedIngredients = JSON.parse(localIng);
+        if (Array.isArray(parsedIngredients)) {
+          setIngredients(parsedIngredients);
+        } else {
+          setIngredients([]);
+          setInventoryError('Inventory data was not in the expected list format.');
+        }
+      } else {
+        setIngredients(INITIAL_INGREDIENTS);
+        localStorage.setItem('qc_ingredients', JSON.stringify(INITIAL_INGREDIENTS));
+      }
+    } catch (err) {
+      console.error('Unable to load inventory data', err);
+      setIngredients([]);
+      setInventoryError('Inventory data could not be loaded.');
+    } finally {
+      setInventoryLoading(false);
     }
 
     // MenuItems
@@ -301,7 +322,7 @@ export default function App() {
     const stamp = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
     setOrders(prev => prev.map(o =>
       (o.status === 'Pending Payment' && (nowMin - timeToMin(o.time)) >= PAYMENT_TIMEOUT_MIN)
-        ? { ...o, status: 'Cancelled' as OrderStatus, queueNo: '', cancellationReason: 'Customer Did Not Pay' as const, cancellationNote: 'Payment timeout after 10 minutes', cancelledBy: 'System', cancelledAt: stamp }
+        ? { ...o, status: 'Auto Cancelled' as OrderStatus, queueNo: '', cancellationReason: 'Payment Timeout' as const, cancellationNote: 'Payment timeout after 10 minutes', cancelledBy: 'System', cancelledAt: stamp, originalOrderStatus: o.status, originalQueueNo: o.queueNo || undefined }
         : o
     ));
     setActivities(prev => [
@@ -485,7 +506,7 @@ export default function App() {
           status: 'New'
         };
         setActivities(prev => [act1, act2, act3, ...prev]);
-      } else if (currentOrder.paymentStatus === 'Failed' || newStatus === 'Cancelled') {
+      } else if (currentOrder.paymentStatus === 'Failed' || newStatus === 'Cancelled' || newStatus === 'Auto Cancelled' || newStatus === 'Cancelled by Staff') {
         const act1: Activity = {
           id: `ACT-PV-${Date.now()}-r`,
           text: `Payment failed for #${orderId} at ${branchName} — customer notified.`,
@@ -539,21 +560,24 @@ export default function App() {
 
     setOrders(prev => prev.map(o => {
       if (o.id !== orderId) return o;
+      if (!o.queueNo || o.paymentStatus !== 'Paid') return o;
       const wasPaid = o.paymentStatus === 'Paid';
       const timeline = [...o.timeline];
-      const cancelIdx = timeline.findIndex(t => t.status === 'Cancelled');
+      const cancelIdx = timeline.findIndex(t => t.status === 'Cancelled by Staff' || t.status === 'Cancelled');
       if (cancelIdx >= 0) {
-        timeline[cancelIdx] = { status: 'Cancelled', time: stamp, active: true };
+        timeline[cancelIdx] = { status: 'Cancelled by Staff', time: stamp, active: true };
       } else {
-        timeline.push({ status: 'Cancelled', time: stamp, active: true });
+        timeline.push({ status: 'Cancelled by Staff', time: stamp, active: true });
       }
       return {
         ...o,
-        status: 'Cancelled' as OrderStatus,
+        status: 'Cancelled by Staff' as OrderStatus,
         cancellationReason: reason,
         cancellationNote: note || undefined,
         cancelledBy,
         cancelledAt: stamp,
+        originalOrderStatus: o.status,
+        originalQueueNo: o.queueNo || undefined,
         refundStatus: wasPaid ? ('Refund Pending' as RefundStatus) : undefined,
         refundAmount: wasPaid ? o.amount : undefined,
         timeline,
@@ -561,11 +585,13 @@ export default function App() {
     }));
 
     const order = orders.find(o => o.id === orderId);
+    if (!order?.queueNo || order.paymentStatus !== 'Paid') return;
     const branchName = order?.branch ?? '';
+    const queueLabel = order?.queueNo ? `Q-${order.queueNo}` : 'No Queue';
     const act: Activity = {
       id: `ACT-CX-${Date.now()}`,
-      text: `Order #${orderId} cancelled at ${branchName} — Reason: ${reason}`,
-      time: `Just now, ${new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}`,
+      text: `Order ${orderId} was cancelled by ${cancelledBy}. Reason: ${reason}. Queue: ${queueLabel}. Branch: ${branchName}. Time: ${stamp}`,
+      time: stamp,
       type: 'order',
       status: 'Alert',
     };
@@ -619,6 +645,22 @@ export default function App() {
 
   // Safe checks for rendering
   const activeBranch = roleMode === 'Staff' ? (staffAssignedBranch as Branch) : selectedBranch;
+  const allowedTabs = roleMode === 'Staff' ? STAFF_ALLOWED_TABS : ADMIN_ALLOWED_TABS;
+
+  useEffect(() => {
+    if (!allowedTabs.includes(currentTab)) {
+      setCurrentTab('Dashboard');
+    }
+  }, [allowedTabs, currentTab]);
+
+  useEffect(() => {
+    const route = `${window.location.pathname}${window.location.hash}`.toLowerCase();
+    const removedRoutes = ['queue-pickup', 'pickup-system', 'queue-display', 'queue-display-management', 'queue-monitor', 'system-settings', 'settings'];
+    if (removedRoutes.some(removed => route.includes(removed))) {
+      window.history.replaceState(null, '', '/');
+      setCurrentTab('Dashboard');
+    }
+  }, []);
 
   return (
     <div className="min-h-screen bg-coffee-bg flex text-coffee font-sans">
@@ -708,6 +750,8 @@ export default function App() {
               setSelectedBranch={setSelectedBranch}
               roleMode={roleMode}
               staffAssignedBranch={staffAssignedBranch}
+              isLoading={inventoryLoading}
+              error={inventoryError}
             />
           )}
 
@@ -741,17 +785,6 @@ export default function App() {
             />
           )}
 
-          {currentTab === 'Queue Display' && (
-            <QueueDisplayView 
-              orders={orders}
-              updateOrderStatus={updateOrderStatus}
-              selectedBranch={selectedBranch}
-              setSelectedBranch={setSelectedBranch}
-              roleMode={roleMode}
-              staffAssignedBranch={staffAssignedBranch}
-            />
-          )}
-
           {currentTab === 'Branches' && (
             <BranchManagementView
               orders={orders}
@@ -760,8 +793,15 @@ export default function App() {
             />
           )}
 
+          {currentTab === 'Warehouse' && (
+            <CentralWarehouseView
+              roleMode={roleMode}
+              staffAssignedBranch={staffAssignedBranch}
+            />
+          )}
+
           {/* Fallback auxiliary screens container */}
-          {!['Dashboard', 'Orders', 'Payment Verification', 'Stock Management', 'Menu & Pricing', 'Coupons', 'Branch Pricing', 'Queue Display', 'Branches'].includes(currentTab) && (
+          {!['Dashboard', 'Orders', 'Payment Verification', 'Stock Management', 'Menu & Pricing', 'Coupons', 'Branch Pricing', 'Branches', 'Warehouse'].includes(currentTab) && (
             <OtherViews 
               tab={currentTab}
               activities={activities}

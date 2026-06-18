@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Order } from '../types';
 import {
   Store, Plus, Pencil, Eye, MapPin, Phone, Clock, X, Check, Send, Save, AlertCircle,
-  Wifi, Car, Coffee, ShoppingBag, Dog, Armchair, Smartphone, Image as ImageIcon, ChevronRight,
+  Wifi, Car, Coffee, ShoppingBag, Dog, Armchair, Smartphone, Image as ImageIcon,
 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -385,12 +385,6 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
                       </div>
                     )}
                   </div>
-                </div>
-                {/* CTA */}
-                <div className="p-3 border-t border-zinc-100 shrink-0">
-                  <button className="w-full py-3 bg-[#8B6B4F] text-white text-sm font-bold rounded-xl flex items-center justify-center gap-1.5">
-                    {t('เลือกสาขานี้', 'Select This Store')} <ChevronRight size={16} />
-                  </button>
                 </div>
               </div>
             </div>

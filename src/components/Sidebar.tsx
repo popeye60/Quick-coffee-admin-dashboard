@@ -2,7 +2,6 @@ import React from 'react';
 import { 
   LayoutDashboard, 
   Coffee, 
-  CheckSquare, 
   Package, 
   Store, 
   Tag, 
@@ -11,11 +10,10 @@ import {
   UserCheck, 
   BarChart2, 
   Bell, 
-  Settings,
   Shield,
   Briefcase,
   History,
-  Tv
+  Warehouse
 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -23,17 +21,16 @@ export type SidebarTab =
   | 'Dashboard' 
   | 'Orders' 
   | 'Payment Verification' 
-  | 'Queue Display'
   | 'Stock Management' 
   | 'Branches' 
-  | 'Menu & Pricing' 
+  | 'Menu & Pricing'
+  | 'Warehouse'
   | 'Branch Pricing'
   | 'Promotions' 
   | 'Coupons' 
   | 'Members' 
   | 'Staff Management' 
   | 'Reports' 
-  | 'Settings'
   | 'Audit Log';
 
 interface SidebarProps {
@@ -67,44 +64,36 @@ export default function Sidebar({
       ]
     },
     {
-      title: language === 'TH' ? 'การดำเนินงานหน้าร้าน' : 'Operations',
+      title: language === 'TH' ? 'การดำเนินงานหน้าร้าน' : 'Store Operations',
       items: [
-        { name: 'Orders' as SidebarTab, icon: <Coffee size={17} />, label: language === 'TH' ? 'รายการออเดอร์กาแฟ' : 'Orders & Queue' },
-        { name: 'Queue Display' as SidebarTab, icon: <Tv size={17} />, label: language === 'TH' ? 'ระบบเรียกคิวและดูจอทีวี' : 'Queue Monitor & TV' },
-        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'ตรวจนับสต็อกประจำวัน' : 'Daily Stock Count' }
+        { name: 'Orders' as SidebarTab, icon: <Coffee size={17} />, label: language === 'TH' ? 'จัดการออเดอร์' : 'Order Management' },
+        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'ตรวจนับสต็อกประจำวัน' : 'Daily Stock Check' }
       ]
     },
     {
-      title: language === 'TH' ? 'การจัดการสิทธิธุรกิจ' : 'Business Management',
+      title: language === 'TH' ? 'การจัดการธุรกิจ' : 'Business Management',
       items: [
         { name: 'Branches' as SidebarTab, icon: <Store size={17} />, label: language === 'TH' ? 'จัดการสาขา' : 'Branch Management' },
-        { name: 'Menu & Pricing' as SidebarTab, icon: <Tag size={17} />, label: language === 'TH' ? 'แค็ตตาล็อกเมนูหลัก' : 'Menu Catalog' },
-        { name: 'Promotions' as SidebarTab, icon: <Bell size={17} />, label: language === 'TH' ? 'ส่งข่าวสารโปรโมชัน' : 'Promotion Broadcast' },
-        { name: 'Coupons' as SidebarTab, icon: <Ticket size={17} />, label: language === 'TH' ? 'จัดการคูปองแคมเปญ' : 'Coupon & Promo Codes' }
+        { name: 'Menu & Pricing' as SidebarTab, icon: <Tag size={17} />, label: language === 'TH' ? 'จัดการเมนูหลัก' : 'Main Menu Management' },
+        { name: 'Warehouse' as SidebarTab, icon: <Warehouse size={17} />, label: language === 'TH' ? 'คลังสินค้ากลาง' : 'Central Warehouse Inventory' },
+        { name: 'Promotions' as SidebarTab, icon: <Bell size={17} />, label: language === 'TH' ? 'จัดการโปรโมชัน' : 'Promotion Management' },
+        { name: 'Coupons' as SidebarTab, icon: <Ticket size={17} />, label: language === 'TH' ? 'จัดการคูปองและแคมเปญ' : 'Coupon & Campaign Management' }
       ]
     },
     {
-      title: language === 'TH' ? 'ดูแลฐานลูกค้า' : 'Customer Relations',
+      title: language === 'TH' ? 'จัดการลูกค้า' : 'Customer Management',
       items: [
-        { name: 'Members' as SidebarTab, icon: <Users size={17} />, label: language === 'TH' ? 'ระบบสมาชิก CRM' : 'Member Database' }
+        { name: 'Members' as SidebarTab, icon: <Users size={17} />, label: language === 'TH' ? 'สมาชิก CRM' : 'CRM Members' }
       ]
     },
     {
-      title: language === 'TH' ? 'สิทธิ์แอดมินจัดการระบบ' : 'Administration',
+      title: language === 'TH' ? 'จัดการแอดมิน' : 'Admin Management',
       items: [
-        { name: 'Staff Management' as SidebarTab, icon: <UserCheck size={17} />, label: language === 'TH' ? 'สิทธิพนักงานและสตาฟ' : 'Staff & Workforce' },
-        { name: 'Reports' as SidebarTab, icon: <BarChart2 size={17} />, label: language === 'TH' ? 'รายงานขายบัญชีสุทธิ' : 'Analytical Reports' },
-        { name: 'Audit Log' as SidebarTab, icon: <History size={17} />, label: language === 'TH' ? 'บันทึกประวัติการทำงาน' : 'Security Audit Trail' },
-        { name: 'Settings' as SidebarTab, icon: <Settings size={17} />, label: language === 'TH' ? 'ตั้งค่าระบบกลาง' : 'System Configuration' }
+        { name: 'Staff Management' as SidebarTab, icon: <UserCheck size={17} />, label: language === 'TH' ? 'พนักงานและสิทธิ์ใช้งาน' : 'Staff & Permissions' },
+        { name: 'Reports' as SidebarTab, icon: <BarChart2 size={17} />, label: language === 'TH' ? 'รายงานยอดขาย' : 'Sales Reports' },
+        { name: 'Audit Log' as SidebarTab, icon: <History size={17} />, label: language === 'TH' ? 'บันทึกกิจกรรม' : 'Activity Logs' }
       ]
     },
-    {
-      title: language === 'TH' ? 'เครื่องมือเดิม (Legacy)' : 'Legacy Tools',
-      items: [
-        { name: 'Payment Verification' as SidebarTab, icon: <CheckSquare size={17} />, label: language === 'TH' ? 'ตรวจสอบการชำระเงิน (เดิม)' : 'Manual Payment Audit' }
-      ],
-      adminOnly: true
-    }
   ];
 
   const adminConsoleTitle = language === 'TH' ? 'คอนโซลผู้ดูแลระบบ (Admin)' : 'Corporate Admin Mode';
@@ -228,7 +217,6 @@ export default function Sidebar({
                 return [
                   'Dashboard',
                   'Orders',
-                  'Queue Display',
                   'Stock Management'
                 ].includes(item.name);
               }
@@ -269,9 +257,6 @@ export default function Sidebar({
                           {item.icon}
                         </span>
                         <span className="truncate">{item.label}</span>
-                        {item.name === 'Payment Verification' && (
-                          <span className="ml-auto font-mono text-[8px] text-zinc-400 uppercase tracking-wider">LEGACY</span>
-                        )}
                       </button>
                     );
                   })}
