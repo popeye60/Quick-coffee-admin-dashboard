@@ -34,6 +34,7 @@ const ADMIN_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Manageme
 const STAFF_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management'];
 const ORDER_SEED_VERSION = '2026-06-18-waiting-payment-label-v1';
 const ACTIVITY_SEED_VERSION = '2026-06-18-activity-logs-v1';
+const PROMOTION_SEED_VERSION = '2026-06-18-promotion-delete-v1';
 
 const QUEUED_STATUSES: OrderStatus[] = ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed', 'Cancelled by Staff'];
 
@@ -251,11 +252,13 @@ export default function App() {
 
     // Promos
     const localPromos = localStorage.getItem('qc_promotions');
-    if (localPromos) {
+    const localPromotionSeedVersion = localStorage.getItem('qc_promotions_seed_version');
+    if (localPromos && localPromotionSeedVersion === PROMOTION_SEED_VERSION) {
       setPromotions(JSON.parse(localPromos));
     } else {
       setPromotions(INITIAL_PROMOTIONS);
       localStorage.setItem('qc_promotions', JSON.stringify(INITIAL_PROMOTIONS));
+      localStorage.setItem('qc_promotions_seed_version', PROMOTION_SEED_VERSION);
     }
 
     // Branch Prices
@@ -751,7 +754,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-coffee-bg flex text-coffee font-sans">
+    <div className="h-screen overflow-hidden bg-coffee-bg flex text-coffee font-sans">
       
       {/* Sidebar navigation */}
       <Sidebar 

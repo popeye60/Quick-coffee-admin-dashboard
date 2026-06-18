@@ -792,8 +792,8 @@ export default function OrdersView({
         {selectedOrder && (
           <div
             id="order-detail-drawer-panel"
-            className="w-full lg:w-[35%] lg:max-w-[35%] bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl self-start overflow-hidden shadow-lg shrink-0 sticky top-6 flex flex-col"
-            style={{ maxHeight: 'calc(100vh - 100px)' }}
+            className="w-full lg:w-[35%] lg:max-w-[35%] bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl self-start overflow-hidden shadow-lg shrink-0 sticky top-4 flex flex-col"
+            style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
             {/* S1: Header */}
             <div className="px-4 py-3.5 bg-[#FDFBF7] border-b border-[#E6DFD9] flex items-center justify-between shrink-0">

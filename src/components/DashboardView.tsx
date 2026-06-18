@@ -12,8 +12,6 @@ import {
   Coffee,
   Sparkles,
   Users,
-  ArrowUpRight,
-  ArrowDownRight,
   TrendingUp,
   ChevronRight,
   Zap,
@@ -120,6 +118,22 @@ export default function DashboardView({
   const preparingCount = queuedOrders.filter(o => o.status === 'Preparing' || o.status === 'Paid').length;
   const readyCount = queuedOrders.filter(o => o.status === 'Ready For Pickup' || o.status === 'Queue Called').length;
   const completedCount = queuedOrders.filter(o => o.status === 'Completed').length;
+
+  // Today's Sales = revenue from completed (successfully delivered) orders only
+  const completedSales = queuedOrders
+    .filter(o => o.status === 'Completed')
+    .reduce((sum, o) => sum + o.amount, 0);
+  // Today's Orders = total orders received today (every order placed, any status)
+  const ordersReceivedCount = branchFilteredOrders.length;
+
+  // ── Admin KPIs: always all-branches daily totals (ignore branch filter) ──
+  const allQueuedOrders = orders.filter(isConfirmedQueuedOrder);
+  const allRevenueCompleted = allQueuedOrders
+    .filter(o => o.status === 'Completed')
+    .reduce((sum, o) => sum + o.amount, 0); // paid + completed only (no unpaid)
+  const allOrdersReceivedCount = orders.length;
+  const allCompletedCount = allQueuedOrders.filter(o => o.status === 'Completed').length;
+  const allStaffCancelledCount = orders.filter(o => o.status === 'Cancelled by Staff').length;
 
   const lowStockCount = ingredients
     .filter(i => (selectedBranch === 'All Branches' ? true : i.branch === selectedBranch))
@@ -258,6 +272,66 @@ export default function DashboardView({
       subtitle: language === 'TH' ? 'เฉพาะคิวที่ชำระเงินแล้ว' : 'paid queued orders only',
       icon: <CheckCircle size={18} className="text-zinc-500" />,
       bgColor: 'bg-stone-50 border-stone-200'
+    },
+    {
+      id: 'stat-sales-today',
+      title: language === 'TH' ? 'ยอดขายวันนี้' : "Today's Sales",
+      value: formatCurrency(completedSales),
+      change: '+24.6%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'รายได้จากออเดอร์ที่สำเร็จ' : 'revenue from completed orders',
+      icon: <DollarSign size={18} className="text-emerald-600" />,
+      bgColor: 'bg-emerald-50/30 border-emerald-100'
+    },
+    {
+      id: 'stat-orders-today',
+      title: language === 'TH' ? 'ออเดอร์วันนี้' : "Today's Orders",
+      value: ordersReceivedCount,
+      change: '+12.1%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'ออเดอร์ที่รับเข้ามาทั้งหมด' : 'total orders received',
+      icon: <ShoppingBag size={18} className="text-blue-600" />,
+      bgColor: 'bg-blue-50/30 border-blue-100'
+    },
+    {
+      id: 'stat-admin-revenue',
+      title: language === 'TH' ? 'รายได้วันนี้' : "Today's Revenue",
+      value: formatCurrency(allRevenueCompleted),
+      change: '+24.6%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'จากออเดอร์ที่สำเร็จ · ทุกสาขา' : 'completed orders · all branches',
+      icon: <DollarSign size={18} className="text-emerald-700" />,
+      bgColor: 'bg-emerald-50/30 border-emerald-100'
+    },
+    {
+      id: 'stat-admin-orders',
+      title: language === 'TH' ? 'ออเดอร์วันนี้' : "Today's Orders",
+      value: allOrdersReceivedCount,
+      change: '+12.1%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'ออเดอร์ที่สร้างวันนี้ · ทุกสาขา' : 'orders created · all branches',
+      icon: <ShoppingBag size={18} className="text-[#8B6B4F]" />,
+      bgColor: 'bg-blue-50/30 border-blue-100'
+    },
+    {
+      id: 'stat-admin-completed',
+      title: language === 'TH' ? 'ส่งมอบสำเร็จ' : 'Completed Orders',
+      value: allCompletedCount,
+      change: '+9.4%',
+      isPositive: true,
+      subtitle: language === 'TH' ? 'ส่งมอบสำเร็จวันนี้ · ทุกสาขา' : 'handed over · all branches',
+      icon: <CheckCircle size={18} className="text-zinc-500" />,
+      bgColor: 'bg-stone-50 border-stone-200'
+    },
+    {
+      id: 'stat-admin-staff-cancelled',
+      title: language === 'TH' ? 'ยกเลิกโดยพนักงาน' : 'Cancelled by Staff',
+      value: allStaffCancelledCount,
+      status: allStaffCancelledCount > 0 ? (language === 'TH' ? 'ตรวจสอบงานหน้าร้าน' : 'Ops review') : (language === 'TH' ? 'ไม่มี' : 'None'),
+      isAlert: allStaffCancelledCount > 0,
+      subtitle: language === 'TH' ? 'ยกเลิกโดยพนักงานวันนี้ · ทุกสาขา' : 'staff cancellations · all branches',
+      icon: <X size={18} className={allStaffCancelledCount > 0 ? 'text-orange-500' : 'text-zinc-400'} />,
+      bgColor: allStaffCancelledCount > 0 ? 'bg-orange-50/40 border-orange-200' : 'bg-stone-50 border-stone-200'
     },
     {
       id: 'stat-low-stock',
@@ -506,21 +580,24 @@ export default function DashboardView({
   const REF_DATE = new Date(2026, 4, 25); // app's simulated current date
 
   interface AnalyticsPoint { label: string; fullLabel: string; revenue: number; orders: number; }
-  interface AnalyticsSummary { revenue: number; orders: number; avgValue: number; }
+  interface AnalyticsSummary { revenue: number; orders: number; completed: number; avgValue: number; }
 
-  // Real "today" totals for a branch — SAME formula the Top KPIs use, so Daily analytics matches them.
+  // Real "today" totals for a branch — SAME formulas the Top KPIs use, so Daily analytics matches them exactly.
+  //  • revenue  = revenue from COMPLETED orders only (no unpaid)         → matches "Today's Revenue"
+  //  • orders   = total orders created                                   → matches "Today's Orders"
+  //  • completed = orders successfully handed over                       → drives Average Order Value
   const computeDayTotals = (branch: string) => {
     const scoped = branch === 'All Branches' ? orders : orders.filter(o => o.branch === branch);
-    const revenue = scoped
-      .filter(isConfirmedQueuedOrder)
-      .reduce((s, o) => s + o.amount, 0);
-    return { revenue, orders: scoped.filter(isConfirmedQueuedOrder).length };
+    const completedList = scoped.filter(isConfirmedQueuedOrder).filter(o => o.status === 'Completed');
+    const revenue = completedList.reduce((s, o) => s + o.amount, 0);
+    return { revenue, orders: scoped.length, completed: completedList.length };
   };
 
+  // Synthetic (Monthly/Yearly) periods treat every charted order as a completed sale.
   const sumSummary = (pts: AnalyticsPoint[]): AnalyticsSummary => {
     const revenue = pts.reduce((a, b) => a + b.revenue, 0);
     const orders = pts.reduce((a, b) => a + b.orders, 0);
-    return { revenue, orders, avgValue: orders > 0 ? Math.round(revenue / orders) : 0 };
+    return { revenue, orders, completed: orders, avgValue: orders > 0 ? Math.round(revenue / orders) : 0 };
   };
 
   const getSalesAnalytics = (timeframe: 'Daily' | 'Monthly' | 'Yearly', branch: string) => {
@@ -553,9 +630,13 @@ export default function DashboardView({
           orders: ordersAtPoint,
         });
       }
-      // Daily KPI summary = TODAY only (the latest point), matching the Top KPIs.
-      const last = points[points.length - 1];
-      summary = { revenue: last.revenue, orders: last.orders, avgValue: last.orders > 0 ? Math.round(last.revenue / last.orders) : 0 };
+      // Daily KPI summary = TODAY only, using the exact same totals as the Top KPIs.
+      summary = {
+        revenue: todayTotals.revenue,
+        orders: todayTotals.orders,
+        completed: todayTotals.completed,
+        avgValue: todayTotals.completed > 0 ? Math.round(todayTotals.revenue / todayTotals.completed) : 0,
+      };
     } else if (timeframe === 'Monthly') {
       // Trend WITHIN the current month (per week); KPI summary = month accumulation.
       const m = REF_DATE.getMonth();
@@ -597,23 +678,12 @@ export default function DashboardView({
   // Admin can freely pick the analytics branch.
   const effectiveSalesBranch = roleMode === 'Staff' ? selectedBranch : salesBranch;
   const analytics = getSalesAnalytics(salesTimeframe, effectiveSalesBranch);
-  // Period qualifier shown on the analytics KPI cards
+  // Summary cards reflect the selected period + branch (same dataset that feeds the chart).
   const periodQualifier = salesTimeframe === 'Daily'
     ? (language === 'TH' ? 'วันนี้' : 'today')
     : salesTimeframe === 'Monthly'
       ? (language === 'TH' ? 'เดือนนี้' : 'this month')
       : (language === 'TH' ? 'ปีนี้' : 'this year');
-  // Period-over-period deltas (latest point vs the one before it) for the KPI cards
-  const pctChange = (cur: number, prev: number) => prev > 0 ? Math.round(((cur - prev) / prev) * 1000) / 10 : 0;
-  const _aPts = analytics.points;
-  const _aLast = _aPts[_aPts.length - 1];
-  const _aPrev = _aPts[_aPts.length - 2] ?? _aLast;
-  const revenueDelta = pctChange(_aLast.revenue, _aPrev.revenue);
-  const ordersDelta = pctChange(_aLast.orders, _aPrev.orders);
-  const aovDelta = pctChange(
-    _aLast.orders > 0 ? _aLast.revenue / _aLast.orders : 0,
-    _aPrev.orders > 0 ? _aPrev.revenue / _aPrev.orders : 0,
-  );
   const revenueMax = Math.max(...analytics.points.map(p => p.revenue), 1);
   // Build a "nice" revenue axis (rounded ceiling + evenly-spaced ticks)
   const niceAxis = (maxVal: number, divs = 4) => {
@@ -692,7 +762,9 @@ export default function DashboardView({
           </span>
         </div>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3.5">
-          {(['stat-revenue', 'stat-orders', 'stat-pending-slip', 'stat-cancelled'] as const)
+          {(roleMode === 'Staff'
+            ? (['stat-sales-today', 'stat-orders-today', 'stat-completed', 'stat-staff-cancelled'] as const)
+            : (['stat-admin-revenue', 'stat-admin-orders', 'stat-admin-completed', 'stat-admin-staff-cancelled'] as const))
             .map(id => kpiCards.find(c => c.id === id))
             .filter(Boolean)
             .map(card => <React.Fragment key={card!.id}>{renderKpiCard(card!)}</React.Fragment>)}
@@ -887,46 +959,38 @@ export default function DashboardView({
           {/* KPI CARDS (30%) — right on desktop, top on mobile */}
           <div className="lg:col-span-3 order-1 lg:order-2 flex flex-col gap-3">
             {(() => {
-              const DeltaPill = ({ delta }: { delta: number }) => {
-                const up = delta >= 0;
-                return (
-                  <span className="inline-flex items-center gap-0.5 text-[10px] font-bold font-mono" style={{ color: up ? '#D97706' : '#DC2626' }}>
-                    {up ? <ArrowUpRight size={11} /> : <ArrowDownRight size={11} />}
-                    {up ? '+' : ''}{delta}%
-                  </span>
-                );
-              };
+              const branchLabel = effectiveSalesBranch === 'All Branches'
+                ? (language === 'TH' ? 'ทุกสาขา' : 'all branches')
+                : effectiveSalesBranch;
+              const scopeLabel = `${periodQualifier} · ${branchLabel}`;
               const cards = [
                 {
                   key: 'rev', label: language === 'TH' ? 'รายได้รวม' : 'Total Revenue',
-                  value: formatCurrency(analytics.summary.revenue), delta: revenueDelta,
+                  value: formatCurrency(analytics.summary.revenue),
                   icon: <DollarSign size={15} className="text-[#8B5E3C]" />,
                   bg: 'bg-[#EADBC8]/60 border-[#D9B38C]', valueCls: 'text-3xl text-[#5E3D26]',
                 },
                 {
                   key: 'ord', label: language === 'TH' ? 'จำนวนออเดอร์' : 'Total Orders',
-                  value: analytics.summary.orders.toLocaleString(), delta: ordersDelta,
+                  value: analytics.summary.orders.toLocaleString(),
                   icon: <ShoppingBag size={15} className="text-[#A67C52]" />,
                   bg: 'bg-[#F8F6F2] border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
                 },
                 {
-                  key: 'aov', label: language === 'TH' ? 'ยอดขายเฉลี่ยต่อบิล' : 'Avg Order Value',
-                  value: formatCurrency(analytics.summary.avgValue), delta: aovDelta,
+                  key: 'aov', label: language === 'TH' ? 'ยอดขายเฉลี่ยต่อบิล' : 'Average Order Value',
+                  value: formatCurrency(analytics.summary.avgValue),
                   icon: <TrendingUp size={15} className="text-[#A67C52]" />,
                   bg: 'bg-white border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
                 },
               ];
               return cards.map(c => (
                 <div key={c.key} className={`flex-1 p-4 border rounded-xl flex flex-col justify-center ${c.bg} shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-1.5">
-                      <span className="p-1 rounded-md bg-white/70 border border-[#EADBC8]">{c.icon}</span>
-                      <span className="text-[10px] uppercase font-bold text-[#A67C52] font-mono tracking-tight">{c.label}</span>
-                    </div>
-                    <DeltaPill delta={c.delta} />
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <span className="p-1 rounded-md bg-white/70 border border-[#EADBC8]">{c.icon}</span>
+                    <span className="text-[10px] uppercase font-bold text-[#A67C52] font-mono tracking-tight">{c.label}</span>
                   </div>
                   <strong className={`font-black font-mono leading-none ${c.valueCls}`}>{c.value}</strong>
-                  <span className="text-[8.5px] text-[#A67C52]/70 font-mono mt-1.5">{language === 'TH' ? `(${periodQualifier}) · เทียบช่วงก่อนหน้า` : `(${periodQualifier}) · vs previous`}</span>
+                  <span className="text-[8.5px] text-[#A67C52]/70 font-mono mt-1.5">{scopeLabel}</span>
                 </div>
               ));
             })()}
@@ -1038,8 +1102,7 @@ export default function DashboardView({
               const topUsed = coupons
                 .filter(c => c.status === 'Active')
                 .map(c => ({ code: c.code, discountType: c.discountType, discountValue: c.discountValue, uses: branchCouponUsage(c.usageCount, selectedBranch) }))
-                .sort((a, b) => b.uses - a.uses)
-                .slice(0, 3);
+                .sort((a, b) => b.uses - a.uses);
               const maxUses = Math.max(...topUsed.map(c => c.uses), 1);
               if (topUsed.length === 0) return (
                 <div className="flex-1 flex items-center justify-center p-4 text-center">
@@ -1047,8 +1110,9 @@ export default function DashboardView({
                 </div>
               );
               return (
-                <div className="space-y-3 flex-1">
-                  <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{language === 'TH' ? 'แคมเปญที่ถูกใช้มากที่สุด (Top 3)' : 'Top 3 Campaigns'}</p>
+                <div className="flex flex-col flex-1 min-h-0">
+                  <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono mb-3">{language === 'TH' ? 'แคมเปญที่ถูกใช้มากที่สุด' : 'Top Campaigns'}</p>
+                  <div className="space-y-3 overflow-y-auto pr-1 max-h-[180px]">
                   {topUsed.map(c => {
                     const percent = Math.round((c.uses / maxUses) * 100);
                     return (
@@ -1063,17 +1127,10 @@ export default function DashboardView({
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               );
             })()}
-
-            <button
-              id="dash-nav-coupons-btn"
-              onClick={() => onNavigateToTab('Coupons')}
-              className="mt-4 w-full py-2 border border-coffee-border hover:bg-stone-50 text-coffee text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              {language === 'TH' ? 'ดูทั้งหมด' : 'View All'} <ChevronRight size={13} />
-            </button>
           </div>
 
       </div>

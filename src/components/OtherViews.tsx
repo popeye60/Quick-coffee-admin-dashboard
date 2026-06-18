@@ -225,9 +225,11 @@ function PromotionsView({
   const { language } = useLanguage();
   const t = (th: string, en: string) => (language === 'TH' ? th : en);
   const [editing, setEditing] = useState<Promotion | null>(null);
+  const [deleting, setDeleting] = useState<Promotion | null>(null);
   const [selectedPromotionId, setSelectedPromotionId] = useState<string | null>(promotions[0]?.id ?? null);
   const [errors, setErrors] = useState<string[]>([]);
   const [imageErrors, setImageErrors] = useState<Record<ImageField, string>>({ bannerImage: '', detailImage: '', thumbnailImage: '' });
+  const [successMessage, setSuccessMessage] = useState('');
   const normalizedPromotions = promotions.map(normalizePromotion);
 
   const notificationDateTime = (p: Promotion) => p.notificationDate && p.notificationTime ? new Date(`${p.notificationDate}T${p.notificationTime}`) : null;
@@ -242,8 +244,26 @@ function PromotionsView({
       id: `ACT-NOTIF-${Date.now()}`,
       text: `${action} — Promotion: "${promo.title || 'Untitled promotion'}" — Notification Status: ${status} — User: Admin User — Date/Time: ${when}`,
       time: when,
-      type: 'coupon',
+      type: 'promotion',
       status: status === 'Failed' ? 'Alert' : 'Sent',
+      username: 'admin',
+      role: 'Super Admin',
+      action,
+    }, ...prev]);
+  };
+
+  const logPromotionDelete = (promo: Promotion) => {
+    const when = new Date().toLocaleString('en-GB', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const action = `Delete Promotion "${promo.title || 'Untitled promotion'}"`;
+    setActivities(prev => [{
+      id: `ACT-PROMO-DELETE-${Date.now()}`,
+      text: action,
+      time: when,
+      type: 'promotion',
+      status: 'Alert',
+      username: 'admin',
+      role: 'Super Admin',
+      action,
     }, ...prev]);
   };
 
@@ -374,11 +394,23 @@ function PromotionsView({
     setPromotions(prev => prev.map(p => p.id === promo.id ? { ...rec, status } : p));
     setSelectedPromotionId(promo.id);
   };
-  const cancelNotification = (promo: Promotion) => {
-    const rec = { ...normalizePromotion(promo), notificationStatus: 'Cancelled' as const };
-    setPromotions(prev => prev.map(p => p.id === promo.id ? rec : p));
-    setSelectedPromotionId(promo.id);
-    logNotification('Cancelled Notification', rec, 'Cancelled');
+
+  const requestDelete = (promo: Promotion) => {
+    setDeleting(normalizePromotion(promo));
+  };
+
+  const confirmDelete = () => {
+    if (!deleting) return;
+    const promo = deleting;
+    setPromotions(prev => prev.filter(p => p.id !== promo.id));
+    if (selectedPromotionId === promo.id) {
+      const next = promotions.find(p => p.id !== promo.id);
+      setSelectedPromotionId(next?.id ?? null);
+    }
+    logPromotionDelete(promo);
+    setDeleting(null);
+    setSuccessMessage(t('ลบโปรโมชันสำเร็จ', 'Promotion deleted successfully.'));
+    window.setTimeout(() => setSuccessMessage(''), 3000);
   };
 
   const handleImage = (field: ImageField, file?: File) => {
@@ -436,6 +468,12 @@ function PromotionsView({
         </button>
       </div>
 
+      {successMessage && (
+        <div className="fixed bottom-5 right-5 z-50 px-4 py-3 bg-[#2E2A25] text-white text-xs font-semibold rounded-xl shadow-2xl flex items-center gap-2 animate-fade-in">
+          <Check size={15} className="text-emerald-400" /> {successMessage}
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
         <div className="xl:col-span-2 space-y-3">
           {normalizedPromotions.map(promo => {
@@ -473,15 +511,15 @@ function PromotionsView({
                   <p className="text-[9px] text-zinc-400 uppercase font-bold">{t('คลิก / วิว', 'Clicks / Views')}</p>
                   <p className="font-mono font-black text-[#8B6B4F]">{promo.clicks.toLocaleString()} / {(promo.views || 0).toLocaleString()}</p>
                 </div>
-                <div className="flex gap-1.5">
-                  <button onClick={() => openEdit(promo)} className="px-3 py-1.5 text-[10px] font-bold border border-[#E6DFD9] rounded-lg hover:bg-stone-50">{t('แก้ไข', 'Edit')}</button>
+                <div className="flex flex-wrap justify-end gap-1.5">
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(promo); }} className="px-3 py-1.5 text-[10px] font-bold border border-[#E6DFD9] rounded-lg hover:bg-stone-50">{t('แก้ไข', 'Edit')}</button>
+                  <button onClick={(e) => { e.stopPropagation(); requestDelete(promo); }} className="px-3 py-1.5 text-[10px] font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 inline-flex items-center gap-1">
+                    <Trash2 size={11} /> {t('ลบ', 'Delete')}
+                  </button>
                   {statusLabel(promo.status) === 'Published' ? (
-                    <button onClick={() => changeStatus(promo, 'Draft')} className="px-3 py-1.5 text-[10px] font-bold bg-zinc-100 text-zinc-600 rounded-lg">{t('ยกเลิกเผยแพร่', 'Unpublish')}</button>
+                    <button onClick={(e) => { e.stopPropagation(); changeStatus(promo, 'Draft'); }} className="px-3 py-1.5 text-[10px] font-bold bg-zinc-100 text-zinc-600 rounded-lg">{t('ยกเลิกเผยแพร่', 'Unpublish')}</button>
                   ) : (
-                    <button onClick={() => changeStatus(promo, 'Published')} className="px-3 py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg">{t('เผยแพร่', 'Publish')}</button>
-                  )}
-                  {promo.notificationStatus === 'Scheduled' && (
-                    <button onClick={() => cancelNotification(promo)} className="px-3 py-1.5 text-[10px] font-bold bg-red-50 text-red-600 rounded-lg">{t('ยกเลิกแจ้งเตือน', 'Cancel Notification')}</button>
+                    <button onClick={(e) => { e.stopPropagation(); changeStatus(promo, 'Published'); }} className="px-3 py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg">{t('เผยแพร่', 'Publish')}</button>
                   )}
                 </div>
               </div>
@@ -610,6 +648,36 @@ function PromotionsView({
             <div className="p-4 bg-white border-t border-[#E6DFD9] flex justify-end gap-2">
               <button onClick={() => savePromotion('Draft')} className="px-4 py-2 border rounded-lg text-xs font-bold">{t('บันทึกฉบับร่าง', 'Save Draft')}</button>
               <button onClick={() => savePromotion('Published')} className="px-4 py-2 bg-[#8B6B4F] text-white rounded-lg text-xs font-bold">{t('เผยแพร่', 'Publish')}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 backdrop-blur-xs p-4" onClick={() => setDeleting(null)}>
+          <div className="w-full max-w-md bg-white rounded-xl border border-red-100 shadow-2xl" onClick={e => e.stopPropagation()}>
+            <div className="p-4 border-b border-red-100 flex items-center justify-between">
+              <div>
+                <h3 className="font-black text-sm text-zinc-900">{t('ลบโปรโมชัน', 'Delete Promotion')}</h3>
+                <p className="text-[11px] text-zinc-500 mt-0.5">{t('การดำเนินการนี้ต้องยืนยันก่อนลบ', 'Please confirm before deleting this promotion.')}</p>
+              </div>
+              <button onClick={() => setDeleting(null)} className="text-zinc-400 hover:text-zinc-700"><X size={18} /></button>
+            </div>
+            <div className="p-4 space-y-3 text-xs">
+              <p className="text-zinc-700">{t('คุณแน่ใจหรือไม่ว่าต้องการลบโปรโมชันนี้?', 'Are you sure you want to delete this promotion?')}</p>
+              <div className="p-3 rounded-lg bg-stone-50 border border-[#E6DFD9]">
+                <p className="text-[10px] uppercase font-black text-zinc-400">{t('ชื่อโปรโมชัน', 'Promotion Name')}</p>
+                <p className="font-bold text-zinc-900 mt-0.5">{deleting.title || t('ยังไม่มีชื่อโปรโมชัน', 'Untitled promotion')}</p>
+              </div>
+              <div className="p-3 rounded-lg bg-red-50 border border-red-100 text-red-700 font-semibold leading-relaxed">
+                {t('คำเตือน: การดำเนินการนี้ไม่สามารถย้อนกลับได้ สถิติและประวัติของโปรโมชันจะไม่สามารถใช้งานได้อีก', 'Warning: This action cannot be undone. Promotion statistics and history will no longer be available.')}
+              </div>
+            </div>
+            <div className="p-4 border-t border-red-100 flex justify-end gap-2">
+              <button onClick={() => setDeleting(null)} className="px-4 py-2 border border-[#E6DFD9] rounded-lg text-xs font-bold text-zinc-600 hover:bg-stone-50">{t('ยกเลิก', 'Cancel')}</button>
+              <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5">
+                <Trash2 size={13} /> {t('ลบโปรโมชัน', 'Delete Promotion')}
+              </button>
             </div>
           </div>
         </div>
@@ -1432,6 +1500,13 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
   const [startDate, setStartDate] = useState('2026-06-01');
   const [endDate, setEndDate] = useState('2026-06-30');
 
+  const assignedBranchForUser = (username: string) => ({
+    admin: 'All Branches',
+    'central.manager': 'Central Plaza',
+    'mega.manager': 'Mega Bangna',
+    system: 'System',
+  }[username] || '-');
+
   // Prefer explicit audit metadata from the seed/current actions, with a small fallback for legacy entries.
   const getAuditDetails = (act: Activity) => {
     const text = act.text.toLowerCase();
@@ -1458,7 +1533,7 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
     else if (!act.action && (text.includes('delete') || text.includes('ลบ'))) actionType = 'Deleted Record';
     else if (!act.action && (text.includes('confirm') || text.includes('ยืนยัน') || text.includes('verify') || text.includes('ตรวจสอบ'))) actionType = 'Confirmed Record';
 
-    return { user, role, actionType };
+    return { user, role, actionType, assignedBranch: assignedBranchForUser(user) };
   };
 
   const filteredActivities = activities.filter(act => {
@@ -1476,12 +1551,13 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
   });
 
   const handleExportCSV = () => {
-    const headers = ['Date/Time', 'Username', 'Role', 'Action'];
+    const headers = ['Date/Time', 'Username', 'Assigned Branch', 'Role', 'Action'];
     const rows = filteredActivities.map(act => {
       const details = getAuditDetails(act);
       return [
         act.time,
         details.user,
+        details.assignedBranch,
         details.role,
         details.actionType.replace(/"/g, '""')
       ];
@@ -1518,7 +1594,7 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
           className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 self-start sm:self-auto shadow-xs cursor-pointer"
         >
           <Download size={14} />
-          {language === 'TH' ? 'ส่งออกล็อกระบบ (Excel .xlsx)' : 'Export Audit (.xlsx)'}
+          {language === 'TH' ? 'ส่งออกรายงาน Excel' : 'Export Excel Report'}
         </button>
       </div>
 
@@ -1646,6 +1722,7 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
                       </td>
                       <td className="p-3">
                         <div className="font-bold text-zinc-800 leading-none">{details.user}</div>
+                        <div className="font-mono text-[9.5px] text-zinc-400 mt-1">{details.assignedBranch}</div>
                       </td>
                       <td className="p-3">
                         <span className={`text-[9.5px] px-2 py-1 rounded font-mono font-extrabold uppercase inline-block ${

@@ -212,7 +212,7 @@ export interface Promotion {
   notificationTime?: string;
   notificationTargetAudience?: 'All Users' | 'All Branches' | 'Selected Branches' | 'Customers of Selected Branches';
   notificationTargetBranches?: Exclude<Branch, 'All Branches'>[];
-  notificationStatus?: 'Draft' | 'Scheduled' | 'Sent' | 'Failed' | 'Cancelled';
+  notificationStatus?: 'Draft' | 'Scheduled' | 'Sent' | 'Failed';
   notificationSentAt?: string;
   bannerImage?: string;
   detailImage?: string;
