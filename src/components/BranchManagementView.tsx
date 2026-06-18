@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Order } from '../types';
+import { Dispatch, SetStateAction, useEffect, useState } from 'react';
+import { Activity, Order } from '../types';
 import {
   Store, Plus, Pencil, Eye, MapPin, Phone, Clock, X, Check, Send, Save, AlertCircle,
   Wifi, Car, Coffee, ShoppingBag, Dog, Armchair, Smartphone, Image as ImageIcon,
@@ -10,6 +10,7 @@ interface BranchManagementViewProps {
   orders: Order[];
   roleMode: 'Admin' | 'Staff';
   staffAssignedBranch: string;
+  setActivities: Dispatch<SetStateAction<Activity[]>>;
 }
 
 type BranchStatus = 'Open' | 'Closed' | 'Temporarily Closed';
@@ -53,12 +54,21 @@ const FACILITY_META = [
   { key: 'pickup' as const, icon: <ShoppingBag size={14} />, th: 'รับที่ร้าน', en: 'Pickup at Store' },
 ];
 
-export default function BranchManagementView({ orders, roleMode, staffAssignedBranch }: BranchManagementViewProps) {
+export default function BranchManagementView({ orders, roleMode, staffAssignedBranch, setActivities }: BranchManagementViewProps) {
   const { language, formatCurrency } = useLanguage();
   const t = (th: string, en: string) => (language === 'TH' ? th : en);
   const isStaff = roleMode === 'Staff';
 
-  const [branches, setBranches] = useState<BranchRecord[]>(SEED);
+  const [branches, setBranches] = useState<BranchRecord[]>(() => {
+    const saved = localStorage.getItem('qc_branches');
+    if (!saved) return SEED;
+    try {
+      const parsed = JSON.parse(saved);
+      return Array.isArray(parsed) ? parsed : SEED;
+    } catch {
+      return SEED;
+    }
+  });
   const [editing, setEditing] = useState<BranchRecord | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [preview, setPreview] = useState<BranchRecord | null>(null);
@@ -69,19 +79,30 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
   const statusStyle = (s: BranchStatus) =>
     s === 'Open' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
     : s === 'Temporarily Closed' ? 'bg-amber-50 text-amber-700 border-amber-200'
-    : 'bg-red-50 text-red-700 border-red-200';
+    : 'bg-zinc-100 text-zinc-700 border-zinc-200';
+  const statusSurface = (s: BranchStatus) =>
+    s === 'Open' ? 'bg-emerald-50/70 border-emerald-100'
+    : s === 'Temporarily Closed' ? 'bg-amber-50/80 border-amber-100'
+    : 'bg-zinc-50 border-zinc-200';
   const statusLabel = (s: BranchStatus) =>
-    s === 'Open' ? t('เปิดให้บริการ', 'Open') : s === 'Temporarily Closed' ? t('ปิดชั่วคราว', 'Temporarily Closed') : t('ปิด', 'Closed');
-  const publishStyle = (p: PublishState) =>
-    p === 'Published' ? 'bg-emerald-100 text-emerald-800' : p === 'Draft' ? 'bg-zinc-100 text-zinc-600' : 'bg-orange-100 text-orange-800';
-  const publishLabel = (p: PublishState) =>
-    p === 'Published' ? t('เผยแพร่แล้ว', 'Published') : p === 'Draft' ? t('ฉบับร่าง', 'Draft') : t('ยกเลิกเผยแพร่', 'Unpublished');
+    s === 'Open' ? t('เปิดให้บริการ', 'Open') : s === 'Temporarily Closed' ? t('ปิดชั่วคราว', 'Temporarily Closed') : t('ปิดร้าน', 'Closed');
+  const statusControlLabel = (s: BranchStatus) =>
+    s === 'Open' ? 'Open' : s === 'Temporarily Closed' ? 'Temporary Closed' : 'Closed';
+  const statusSelectStyle = (s: BranchStatus) =>
+    s === 'Open' ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+    : s === 'Temporarily Closed' ? 'bg-amber-50 text-amber-700 border-amber-200'
+    : 'bg-zinc-100 text-zinc-700 border-zinc-200';
+  const statusOptions: BranchStatus[] = ['Open', 'Temporarily Closed', 'Closed'];
 
   const todayStats = (name: string) => {
     const scoped = orders.filter(o => o.branch === name);
     const sales = scoped.filter(o => o.status !== 'Cancelled' && o.status !== 'Pending Payment').reduce((s, o) => s + o.amount, 0);
     return { count: scoped.length, sales };
   };
+
+  useEffect(() => {
+    localStorage.setItem('qc_branches', JSON.stringify(branches));
+  }, [branches]);
 
   const validate = (b: BranchRecord) => {
     const e: string[] = [];
@@ -106,6 +127,34 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
     });
   };
 
+  const withAvailabilityForStatus = (branch: BranchRecord, status: BranchStatus): BranchRecord => ({
+    ...branch,
+    status,
+    services: {
+      ...branch.services,
+      mobileOrder: status === 'Open',
+    },
+    facilities: {
+      ...branch.facilities,
+      pickup: status === 'Open',
+    },
+  });
+
+  const handleStatusChange = (branch: BranchRecord, status: BranchStatus) => {
+    if (branch.status === status) return;
+    const updated = withAvailabilityForStatus(branch, status);
+    setBranches(prev => prev.map(b => b.id === branch.id ? updated : b));
+    setPreview(prev => prev?.id === branch.id ? updated : prev);
+    setEditing(prev => prev?.id === branch.id ? updated : prev);
+    setActivities(prev => [{
+      id: `ACT-BR-${Date.now()}`,
+      text: `Admin changed ${branch.name} status to ${status}.`,
+      time: 'Just now',
+      type: 'branch',
+      status: 'Alert',
+    }, ...prev]);
+  };
+
   const handleSaveDraft = () => {
     if (!editing) return;
     upsert({ ...editing, publish: editing.publish === 'Published' ? 'Published' : 'Draft' });
@@ -122,8 +171,10 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
 
   // Controlled field helpers
   const setField = <K extends keyof BranchRecord>(k: K, v: BranchRecord[K]) => setEditing(prev => prev ? { ...prev, [k]: v } : prev);
+  const setEditingStatus = (status: BranchStatus) => setEditing(prev => prev ? withAvailabilityForStatus(prev, status) : prev);
   const toggleSvc = (k: keyof BranchRecord['services']) => setEditing(prev => prev ? { ...prev, services: { ...prev.services, [k]: !prev.services[k] } } : prev);
   const toggleFac = (k: keyof BranchRecord['facilities']) => setEditing(prev => prev ? { ...prev, facilities: { ...prev.facilities, [k]: !prev.facilities[k] } } : prev);
+  const canAcceptOrders = (b: BranchRecord) => b.status === 'Open' && b.publish === 'Published' && b.services.mobileOrder && b.facilities.pickup;
 
   const inputCls = 'w-full text-xs py-2 px-3 font-sans bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]';
   const sectionTitle = (n: number, title: string) => (
@@ -161,50 +212,72 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
         {visible.map(b => {
           const st = todayStats(b.name);
           return (
-            <div key={b.id} className="bg-white border border-[#E6DFD9] rounded-2xl shadow-xs overflow-hidden">
-              <div className="flex items-start gap-3 p-4">
-                <div className="w-16 h-16 rounded-xl bg-[#FDF1E6] border border-[#E6DFD9] flex items-center justify-center text-3xl shrink-0">{b.cover || '🏬'}</div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <h3 className="font-bold text-sm text-zinc-900">{b.name || t('(ยังไม่ตั้งชื่อ)', '(Untitled)')}</h3>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusStyle(b.status)}`}>{statusLabel(b.status)}</span>
-                    <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full ${publishStyle(b.publish)}`}>{publishLabel(b.publish)}</span>
+            <div key={b.id} className={`h-full min-h-[218px] border rounded-xl shadow-xs overflow-hidden flex flex-col ${statusSurface(b.status)}`}>
+              {/* 1. Branch info */}
+              <div className="p-3 bg-white/75 border-b border-white/70">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3 min-w-0 flex-1">
+                    <div className="w-12 h-12 rounded-lg bg-white border border-[#E6DFD9] flex items-center justify-center text-2xl shrink-0 shadow-xs">{b.cover || '🏬'}</div>
+                    <div className="min-w-0">
+                      <h3 className="font-black text-base text-zinc-950 leading-tight truncate">{b.name || t('(ยังไม่ตั้งชื่อ)', '(Untitled)')}</h3>
+                      <p className="text-[10.5px] text-zinc-500 mt-1 flex items-center gap-1 truncate"><MapPin size={10} className="shrink-0" />{b.address}</p>
+                      <div className="flex items-center gap-2 mt-1 text-[10.5px] text-zinc-500">
+                        <span className="flex items-center gap-1 min-w-0"><Clock size={11} className="shrink-0" /><span className="truncate">{b.hours}</span></span>
+                        <span className="text-zinc-300">|</span>
+                        <span className="flex items-center gap-1 min-w-0"><Phone size={11} className="shrink-0" /><span className="truncate">{b.phone}</span></span>
+                      </div>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-zinc-500 mt-1 flex items-center gap-1 truncate"><MapPin size={11} className="shrink-0" />{b.address}</p>
-                  <div className="flex items-center gap-3 mt-0.5 text-[11px] text-zinc-500">
-                    <span className="flex items-center gap-1"><Clock size={11} />{b.hours}</span>
-                    <span className="flex items-center gap-1"><Phone size={11} />{b.phone}</span>
+                  {!isStaff ? (
+                    <select
+                      id={`branch-status-${b.id}`}
+                      value={b.status}
+                      onChange={e => handleStatusChange(b, e.target.value as BranchStatus)}
+                      className={`w-32 shrink-0 py-1.5 pl-2 pr-1 border rounded-lg text-[10.5px] font-black focus:outline-none focus:ring-2 focus:ring-[#8B6B4F]/20 cursor-pointer ${statusSelectStyle(b.status)}`}
+                    >
+                      {statusOptions.map(status => (
+                        <option key={status} value={status}>{statusControlLabel(status)}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <span className={`text-[9px] font-black px-2 py-1 rounded-full border shrink-0 ${statusStyle(b.status)}`}>{statusLabel(b.status)}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Today stats */}
+              <div className="px-3 py-2">
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="px-3 py-2 bg-white/80 border border-white rounded-lg">
+                    <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('ออเดอร์วันนี้', 'Orders Today')}</p>
+                    <p className="font-black text-sm text-zinc-800">{st.count}</p>
+                  </div>
+                  <div className="px-3 py-2 bg-white/80 border border-white rounded-lg">
+                    <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('ยอดขายวันนี้', 'Sales Today')}</p>
+                    <p className="font-black text-sm text-[#8B6B4F] font-mono">{formatCurrency(st.sales)}</p>
                   </div>
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 divide-x divide-[#E6DFD9] border-t border-[#E6DFD9] bg-stone-50/50">
-                <div className="p-3 text-center">
-                  <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('ออเดอร์วันนี้', 'Orders Today')}</p>
-                  <p className="font-black text-base text-zinc-800">{st.count}</p>
-                </div>
-                <div className="p-3 text-center">
-                  <p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('ยอดขายวันนี้', 'Sales Today')}</p>
-                  <p className="font-black text-base text-[#8B6B4F] font-mono">{formatCurrency(st.sales)}</p>
-                </div>
-              </div>
-
-              <div className="p-3 flex items-center gap-2 border-t border-[#E6DFD9]">
-                <button
-                  onClick={() => setPreview(b)}
-                  className="flex-1 py-2 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
-                >
-                  <Eye size={13} /> {t('ดูตัวอย่างบนแอพ', 'Preview on App')}
-                </button>
-                {!isStaff && (
+              {/* 3. Actions */}
+              <div className="p-3 pt-1 mt-auto">
+                <div className="flex items-center gap-2">
                   <button
-                    id={`edit-branch-${b.id}`}
-                    onClick={() => openEdit(b)}
-                    className="flex-1 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
+                    onClick={() => setPreview(b)}
+                    className="flex-1 min-h-9 border border-[#E6DFD9] bg-white hover:bg-stone-50 text-zinc-600 text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
                   >
-                    <Pencil size={13} /> {t('แก้ไข', 'Edit')}
+                    <Eye size={13} /> {t('ดูตัวอย่างบนแอพ', 'Preview on App')}
                   </button>
-                )}
+                  {!isStaff && (
+                    <button
+                      id={`edit-branch-${b.id}`}
+                      onClick={() => openEdit(b)}
+                      className="flex-1 min-h-9 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-[11px] font-bold rounded-lg transition-all flex items-center justify-center gap-1.5"
+                    >
+                      <Pencil size={13} /> {t('แก้ไข', 'Edit')}
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
           );
@@ -235,7 +308,7 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
                 <label className="block"><span className="text-[10px] font-bold text-zinc-500">{t('ชื่อสาขา', 'Branch Name')} *</span>
                   <input className={inputCls} value={editing.name} onChange={e => setField('name', e.target.value)} placeholder="Central Plaza" /></label>
                 <label className="block"><span className="text-[10px] font-bold text-zinc-500">{t('สถานะสาขา', 'Branch Status')}</span>
-                  <select className={inputCls} value={editing.status} onChange={e => setField('status', e.target.value as BranchStatus)}>
+                  <select className={inputCls} value={editing.status} onChange={e => setEditingStatus(e.target.value as BranchStatus)}>
                     <option value="Open">{t('เปิดให้บริการ', 'Open')}</option>
                     <option value="Temporarily Closed">{t('ปิดชั่วคราว', 'Temporarily Closed')}</option>
                     <option value="Closed">{t('ปิด', 'Closed')}</option>
@@ -360,6 +433,16 @@ export default function BranchManagementView({ orders, roleMode, staffAssignedBr
                       {preview.services.mobileOrder && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#FDF1E6] text-[#8B6B4F] flex items-center gap-1"><Smartphone size={11} />{t('สั่งผ่านแอป', 'Mobile Order')}</span>}
                       {preview.services.inStore && <span className="text-[10px] font-bold px-2 py-1 rounded-full bg-[#FDF1E6] text-[#8B6B4F] flex items-center gap-1"><Store size={11} />{t('สั่งที่ร้าน', 'In-store')}</span>}
                     </div>
+                    <button
+                      disabled={!canAcceptOrders(preview)}
+                      className={`w-full py-2.5 rounded-xl text-xs font-black transition-all ${canAcceptOrders(preview) ? 'bg-[#8B6B4F] text-white' : 'bg-zinc-100 text-zinc-400 cursor-not-allowed'}`}
+                    >
+                      {canAcceptOrders(preview)
+                        ? t('เลือกสาขานี้และสั่งซื้อ', 'Select Branch & Order')
+                        : preview.status === 'Temporarily Closed'
+                          ? t('ปิดชั่วคราว ไม่สามารถสั่งซื้อได้', 'Temporarily Closed - Ordering Unavailable')
+                          : t('ปิด ไม่สามารถสั่งซื้อได้', 'Closed - Ordering Unavailable')}
+                    </button>
 
                     {/* Map */}
                     <div className="h-24 rounded-xl border border-[#E6DFD9] bg-[linear-gradient(135deg,#EADBC8_25%,transparent_25%),linear-gradient(225deg,#EADBC8_25%,transparent_25%),linear-gradient(45deg,#EADBC8_25%,transparent_25%),linear-gradient(315deg,#EADBC8_25%,#F8F6F2_25%)] bg-[length:18px_18px] flex items-center justify-center text-[10px] font-mono text-[#8B6B4F]">

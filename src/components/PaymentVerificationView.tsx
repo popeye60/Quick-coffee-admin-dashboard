@@ -100,19 +100,24 @@ const INITIAL_DEMO_RECORDS: Order[] = [
     customerPhone: '087-333-4444',
     customerEmail: 'waraporn.k@example.com',
     branch: 'The Mall Korat',
-    status: 'Cancelled', // Rejected
+    status: 'Auto Cancelled', // Payment timeout
     amount: 195,
     time: '13:15',
     orderTime: '13 Jun 2026, 13:15',
     paymentStatus: 'Pending Payment',
     paymentMethod: 'PromptPay QR',
+    cancellationReason: 'Payment Timeout',
+    cancellationNote: 'Payment timeout before queue generation',
+    cancelledBy: 'System',
+    cancelledAt: '13 Jun 2026, 13:20',
+    originalOrderStatus: 'Pending Payment',
     items: [
       { item: { id: 'c4', name: 'Matcha Latte', category: 'Beverage', price: 95, status: 'Available', image: '' }, qty: 1, price: 95, total: 95 },
       { item: { id: 'b2', name: 'Chocolate Cake', category: 'Bakery', price: 100, status: 'Available', image: '' }, qty: 1, price: 100, total: 100 }
     ],
     timeline: [
       { status: 'Pending Payment', time: '13:15', active: true },
-      { status: 'Cancelled', time: '13:20', active: true }
+      { status: 'Auto Cancelled', time: '13:20', active: true }
     ],
     note: 'ขอขมเข้มข้นเขียวมัทฉะ'
   },
@@ -210,18 +215,23 @@ const INITIAL_DEMO_RECORDS: Order[] = [
     customerPhone: '088-777-8888',
     customerEmail: 'anong.n@example.com',
     branch: 'Siam Square',
-    status: 'Cancelled',
+    status: 'Auto Cancelled',
     amount: 85,
     time: '11:20',
     orderTime: '13 Jun 2026, 11:20',
     paymentStatus: 'Pending Payment',
     paymentMethod: 'PromptPay QR',
+    cancellationReason: 'Payment Timeout',
+    cancellationNote: 'Payment timeout before queue generation',
+    cancelledBy: 'System',
+    cancelledAt: '13 Jun 2026, 11:25',
+    originalOrderStatus: 'Pending Payment',
     items: [
       { item: { id: 'c2', name: 'Iced Americano', category: 'Coffee', price: 85, status: 'Available', image: '' }, qty: 1, price: 85, total: 85 }
     ],
     timeline: [
       { status: 'Pending Payment', time: '11:20', active: true },
-      { status: 'Cancelled', time: '11:25', active: true }
+      { status: 'Auto Cancelled', time: '11:25', active: true }
     ],
     note: ''
   },
@@ -466,18 +476,25 @@ export default function PaymentVerificationView({
       if (o.id === selectedOrder.id) {
         const updatedTimeline = [...o.timeline];
         
-        // Mark Cancelled step active for visual audit
-        const cancelIdx = updatedTimeline.findIndex(t => t.status === 'Cancelled');
+        // Mark system cancellation active for visual audit
+        const cancelIdx = updatedTimeline.findIndex(t => t.status === 'Auto Cancelled');
         if (cancelIdx >= 0) {
-          updatedTimeline[cancelIdx] = { status: 'Cancelled', time: nowTime, active: true };
+          updatedTimeline[cancelIdx] = { status: 'Auto Cancelled', time: nowTime, active: true };
         } else {
-          updatedTimeline.push({ status: 'Cancelled', time: nowTime, active: true });
+          updatedTimeline.push({ status: 'Auto Cancelled', time: nowTime, active: true });
         }
 
         return {
           ...o,
-          status: 'Pending Payment' as OrderStatus,
+          status: 'Auto Cancelled' as OrderStatus,
+          queueNo: '',
           paymentStatus: 'Rejected' as any,
+          cancellationReason: 'Payment Verification Failed',
+          cancellationNote: rejectReason || 'Payment proof was rejected during verification',
+          cancelledBy: 'System',
+          cancelledAt: new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }),
+          originalOrderStatus: 'Pending Payment' as OrderStatus,
+          originalQueueNo: undefined,
           timeline: updatedTimeline,
           note: rejectReason ? `Rejected: ${rejectReason}` : 'Rejected'
         };

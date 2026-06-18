@@ -631,24 +631,66 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
     m.email.toLowerCase().includes(search.toLowerCase())
   );
 
+  const memberBirthdays: Record<string, string> = {
+    'MEM-001': '14 Feb 1992',
+    'MEM-002': '03 Aug 1989',
+    'MEM-003': '21 Nov 1995',
+    'MEM-004': '09 May 1987',
+    'MEM-005': '30 Sep 1990',
+  };
+  const dateOfBirth = (m: Member) => m.dateOfBirth || memberBirthdays[m.id] || '-';
+
+  const handleExportMembers = () => {
+    const headers = ['ชื่อ-นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'วันเดือนปีเกิด', 'วันที่สมัครสมาชิก', 'ยอดใช้จ่ายสะสม', 'จำนวนครั้งที่สั่งซื้อ'];
+    const rows = filtered.map(m => [
+      m.name,
+      m.phone,
+      m.email,
+      dateOfBirth(m),
+      m.joinDate,
+      String(m.totalSpend),
+      String(m.totalOrders),
+    ]);
+    const csvContent = '\uFEFF' + [headers, ...rows]
+      .map(row => row.map(value => `"${String(value).replace(/"/g, '""')}"`).join(','))
+      .join('\n');
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `quick_coffee_crm_members_${new Date().toISOString().split('T')[0]}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <div className="p-6 space-y-5 font-sans animate-fade-in">
       <div className="bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] flex flex-col sm:flex-row sm:items-center justify-between gap-4.5 shadow-xs">
         <div>
           <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'ทะเบียนสมาชิกลูกค้า (CRM)' : 'Client CRM Registry'}</h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'จัดการระดับเกียรติยศลูกค้า ตรวจสอบยอดพอยท์รางวัล และอัตราผลตอบแทนสั่งซื้อกาแฟสะสม' : 'Manage users loyalty tier cards, track spent budgets, and balance coffee points rewards'}</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'ดูข้อมูลติดต่อ วันเกิด ยอดใช้จ่าย และประวัติสมัครสมาชิกสำหรับงาน CRM และการตลาด' : 'Review contact details, birthdays, spend history, and signup dates for CRM and marketing.'}</p>
         </div>
 
-        {/* Search input and form */}
-        <div className="relative w-full sm:w-64">
-          <Search size={14} className="absolute left-3 top-2.5 text-zinc-400" />
-          <input 
-            type="text" 
-            placeholder={language === 'TH' ? 'ค้นหาชื่อสมาชิก, เบอร์โทรศัพท์...' : 'Search Member name, phone...'} 
-            value={search}
-            onChange={e => setSearch(e.target.value)}
-            className="w-full text-xs py-2 pl-9 pr-3 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
-          />
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <button
+            id="export-members-excel-btn"
+            onClick={handleExportMembers}
+            className="px-3.5 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs transition-all whitespace-nowrap"
+          >
+            {language === 'TH' ? 'ส่งออกรายงาน Excel' : 'Export Excel Report'}
+          </button>
+          <div className="relative w-full sm:w-64">
+            <Search size={14} className="absolute left-3 top-2.5 text-zinc-400" />
+            <input
+              type="text"
+              placeholder={language === 'TH' ? 'ค้นหาชื่อสมาชิก, เบอร์โทรศัพท์...' : 'Search member name, phone...'}
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              className="w-full text-xs py-2 pl-9 pr-3 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+            />
+          </div>
         </div>
       </div>
 
@@ -658,46 +700,32 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
           <table className="w-full text-left border-collapse text-xs">
             <thead>
               <tr className="border-b border-[#E6DFD9] bg-stone-50/50 text-[#8B6B4F]">
-                <th className="py-2.5 px-3 font-bold uppercase tracking-wider">{language === 'TH' ? 'ข้อมูลชื่อและวันลงทะเบียนสมาชิก' : 'Client Member Name'}</th>
-                <th className="py-2.5 px-3 font-bold uppercase tracking-wider">{language === 'TH' ? 'ข้อมูลการติดต่อหลัก' : 'Contact Coordinates'}</th>
-                <th className="py-2.5 px-3 font-bold uppercase tracking-wider">{language === 'TH' ? 'ระดับพอยท์บัตรเกียรติยศ' : 'Membership tier'}</th>
-                <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-right">{language === 'TH' ? 'ยอดสะสมแต้มปัจจุบัน' : 'Points bank'}</th>
-                <th className="py-2.5 px-3 font-bold uppercase tracking-wider text-right">{language === 'TH' ? 'อัตรายอดเสียเงินกาแฟสะสม' : 'Total spendings'}</th>
+                <th className="py-3 px-4 font-bold uppercase tracking-wider w-[24%]">{language === 'TH' ? 'ชื่อสมาชิก' : 'Member Name'}</th>
+                <th className="py-3 px-4 font-bold uppercase tracking-wider w-[26%]">{language === 'TH' ? 'ข้อมูลติดต่อ' : 'Contact Info'}</th>
+                <th className="py-3 px-4 font-bold uppercase tracking-wider w-[16%]">{language === 'TH' ? 'วันเดือนปีเกิด' : 'Date of Birth'}</th>
+                <th className="py-3 px-4 font-bold uppercase tracking-wider text-right w-[20%]">{language === 'TH' ? 'ยอดใช้จ่ายสะสม' : 'Total Spend'}</th>
+                <th className="py-3 px-4 font-bold uppercase tracking-wider w-[14%]">{language === 'TH' ? 'วันที่สมัครสมาชิก' : 'Join Date'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 text-zinc-700">
-              {filtered.map(m => {
-                const tierStyles = {
-                  Gold: 'bg-amber-100 text-amber-800 border-amber-200/20 font-bold',
-                  Silver: 'bg-slate-100 text-slate-700 border-slate-200/50',
-                  Bronze: 'bg-orange-100 text-orange-850 border-orange-200/20'
-                }[m.tier] || 'bg-zinc-100';
-
-                return (
-                  <tr key={m.id} className="hover:bg-amber-50/5 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-zinc-900">{m.name}</div>
-                      <span className="font-mono text-[9.5px] text-zinc-400">{language === 'TH' ? 'สมัครเมื่อ:' : 'Join date:'} {m.joinDate}</span>
-                    </td>
-                    <td className="py-3 px-3">
-                      <div>📱 {m.phone}</div>
-                      <div className="text-zinc-400 text-[10.5px] mt-0.5">✉️ {m.email}</div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 rounded border text-[10px] ${tierStyles}`}>
-                        {m.tier}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-mono font-bold text-right text-zinc-800">
-                      ⭐ {m.points} {language === 'TH' ? 'แต้ม' : 'pts'}
-                    </td>
-                    <td className="py-3 px-3 text-right">
-                      <strong className="font-mono text-[#8B6B4F] text-xs font-black">{formatCurrency(m.totalSpend)}</strong>
-                      <span className="text-[10px] text-zinc-400 font-mono block">({m.totalOrders} {language === 'TH' ? 'รอบสั่งซื้อที่แล้ว' : 'order records'})</span>
-                    </td>
-                  </tr>
-                );
-              })}
+              {filtered.map(m => (
+                <tr key={m.id} className="hover:bg-amber-50/5 transition-colors">
+                  <td className="py-3.5 px-4">
+                    <div className="font-bold text-zinc-900">{m.name}</div>
+                    <span className="font-mono text-[9.5px] text-zinc-400">{m.id}</span>
+                  </td>
+                  <td className="py-3.5 px-4">
+                    <div className="font-mono text-[11px] text-zinc-700">{m.phone}</div>
+                    <div className="text-zinc-400 text-[10.5px] mt-0.5">{m.email}</div>
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-700">{dateOfBirth(m)}</td>
+                  <td className="py-3.5 px-4 text-right bg-amber-50/30">
+                    <strong className="font-mono text-[#8B6B4F] text-sm font-black">{formatCurrency(m.totalSpend)}</strong>
+                    <span className="text-[10px] text-zinc-400 font-mono block">{m.totalOrders} {language === 'TH' ? 'ครั้งที่สั่งซื้อ' : 'orders'}</span>
+                  </td>
+                  <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-600">{m.joinDate}</td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
@@ -710,43 +738,81 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
 // 4. STAFF MANAGEMENT VIEW
 // ----------------------------------------------------
 function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: any }) {
-  const [newStaffName, setNewStaffName] = useState('');
-  const [newStaffRole, setNewStaffRole] = useState<'Branch Manager' | 'Barista'>('Barista');
-  const [newStaffBranch, setNewStaffBranch] = useState<Branch>('Central Plaza');
-  const [newStaffEmail, setNewStaffEmail] = useState('');
-  const [showAddForm, setShowAddForm] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [assignedBranch, setAssignedBranch] = useState<Exclude<Branch, 'All Branches'>>('Central Plaza');
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [formError, setFormError] = useState('');
   const { language } = useLanguage();
 
-  const handleToggleState = (id: string) => {
-    setStaff((prev: any) => prev.map((s: any) => {
-      if (s.id === id) {
-        return { ...s, status: s.status === 'Active' ? 'Inactive' : 'Active' };
-      }
-      return s;
-    }));
+  const branches: Exclude<Branch, 'All Branches'>[] = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
+  const protectedAdmin: Staff = staff.find(s => (s.username || s.name) === 'admin' && s.role === 'Super Admin') || {
+    id: 'STF-SYSTEM-ADMIN',
+    name: 'admin',
+    username: 'admin',
+    password: '********',
+    role: 'Super Admin',
+    branch: 'All Branches',
+    email: 'admin@quickcoffee.local',
+    status: 'Active',
+  };
+  const accountRows = [protectedAdmin, ...staff.filter(s => s.role === 'Branch Manager')];
+  const accountUsername = (s: Staff) => s.username || s.name;
+  const maskedPassword = '********';
+  const isProtectedAdmin = (s: Staff) => accountUsername(s) === 'admin' && s.role === 'Super Admin';
+
+  const resetForm = () => {
+    setUsername('');
+    setPassword('');
+    setAssignedBranch('Central Plaza');
+    setEditingId(null);
+    setFormError('');
   };
 
-  const handleAddStaff = (e: React.FormEvent) => {
+  const handleSubmitAccount = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newStaffName || !newStaffEmail) return;
+    const cleanUsername = username.trim();
+    const cleanPassword = password.trim();
+    if (!cleanUsername) { setFormError(language === 'TH' ? 'กรุณากรอก Username' : 'Username is required'); return; }
+    if (!cleanPassword) { setFormError(language === 'TH' ? 'กรุณากรอก Password' : 'Password is required'); return; }
+    if (!assignedBranch) { setFormError(language === 'TH' ? 'กรุณาเลือกสาขา' : 'Assigned Branch is required'); return; }
+    const duplicate = accountRows.some(s => accountUsername(s).toLowerCase() === cleanUsername.toLowerCase() && s.id !== editingId);
+    if (duplicate) { setFormError(language === 'TH' ? 'Username นี้ถูกใช้งานแล้ว' : 'Username must be unique'); return; }
 
-    const newS: Staff = {
-      id: `STF-00${staff.length + 1}`,
-      name: newStaffName,
-      role: newStaffRole,
-      branch: newStaffBranch,
-      email: newStaffEmail,
-      status: 'Active'
-    };
+    if (editingId) {
+      setStaff((prev: Staff[]) => prev.map(s => s.id === editingId ? {
+        ...s,
+        name: cleanUsername,
+        username: cleanUsername,
+        password: cleanPassword,
+        role: 'Branch Manager',
+        branch: assignedBranch,
+        email: `${cleanUsername}@quickcoffee.local`,
+      } : s));
+    } else {
+      const newS: Staff = {
+        id: `STF-${Date.now().toString().slice(-6)}`,
+        name: cleanUsername,
+        username: cleanUsername,
+        password: cleanPassword,
+        role: 'Branch Manager',
+        branch: assignedBranch,
+        email: `${cleanUsername}@quickcoffee.local`,
+        status: 'Active',
+      };
+      setStaff((prev: Staff[]) => [...prev, newS]);
+    }
 
-    setStaff((prev: any) => [...prev, newS]);
-    setNewStaffName('');
-    setNewStaffEmail('');
-    setShowAddForm(false);
+    resetForm();
   };
 
-  const handleDeleteStaff = (id: string) => {
-    setStaff((prev: any) => prev.filter((s: any) => s.id !== id));
+  const handleEditAccount = (s: Staff) => {
+    if (isProtectedAdmin(s)) return;
+    setEditingId(s.id);
+    setUsername(accountUsername(s));
+    setPassword(s.password || '');
+    setAssignedBranch(s.branch === 'All Branches' ? 'Central Plaza' : s.branch);
+    setFormError('');
   };
 
   return (
@@ -755,80 +821,64 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
       {/* Upper header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4.5 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] shadow-xs">
         <div>
-          <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'บัญชีควบคุมกำลังพลบาริสต้า' : 'Workforce Roster & Baristas'}</h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'ควบคุมสิทธิ์พนักงานบาริสต้า แคชเชียร์ ประจำสาขา และเปิดปิดเวลางานกะล่าสุด' : 'Authorise cash register access, assign staff branches, and toggle active shift rosters'}</p>
+          <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'จัดการบัญชีผู้จัดการสาขา' : 'Branch Manager Account Management'}</h3>
+          <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'สร้างและแก้ไขบัญชีเข้าสู่ระบบสำหรับผู้จัดการสาขาเท่านั้น' : 'Create and manage login accounts for Branch Managers only.'}</p>
         </div>
-
-        <button
-          onClick={() => setShowAddForm(true)}
-          className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg font-sans shadow-xs transition-colors flex items-center justify-center gap-1.5 self-start sm:self-auto"
-        >
-          <Plus size={14} /> {language === 'TH' ? 'สมัครพนักงานใหม่เข้าระบบ' : 'Register New Staff'}
-        </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
         
         {/* Listings roster */}
         <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
-          <div className="overflow-x-auto text-xs">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="border-b border-[#E6DFD9] bg-stone-50/50">
-                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'รายชื่อบุคลากร' : 'Employee Name'}</th>
-                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'จุดปฏิบัติจริง' : 'Assigned Point'}</th>
-                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'บทบาทขอบเขต' : 'System Role'}</th>
-                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider text-center">{language === 'TH' ? 'สถานะกะ' : 'Status'}</th>
-                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider text-center">{language === 'TH' ? 'ปลดออก' : 'Delete'}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-zinc-100 text-zinc-700">
-                {staff.map(s => (
-                  <tr key={s.id} className="hover:bg-amber-50/5 transition-colors">
-                    <td className="py-3 px-3">
-                      <div className="font-bold text-zinc-900">{s.name}</div>
-                      <div className="text-zinc-400 text-[10.5px] font-mono leading-none mt-0.5">{s.email}</div>
-                    </td>
-                    <td className="py-3 px-3 font-medium text-zinc-600">
-                      {s.branch}
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className={`px-2 py-0.5 font-bold rounded-md border text-[9px] ${
-                        s.role === 'Super Admin' 
-                          ? 'bg-rose-50 text-rose-800 border-rose-220/20' 
-                          : s.role === 'Branch Manager' 
-                            ? 'bg-[#EAD1A8]/20 text-neutral-800 border-yellow-200' 
-                            : 'bg-emerald-50 text-[#4A6042] border-[#A8BB9A]/20'
-                      }`}>
-                        {s.role === 'Super Admin' ? (language === 'TH' ? 'ผู้ดูแลระบบสูงสุด' : 'Super Admin') : s.role}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      <button
-                        onClick={() => handleToggleState(s.id)}
-                        className={`px-2.5 py-0.5 font-sans font-bold border rounded-lg text-[10px] ${
-                          s.status === 'Active' 
-                            ? 'bg-emerald-50 text-emerald-850 border-emerald-200' 
-                            : 'bg-zinc-100 text-zinc-500 border-zinc-200/50'
-                        }`}
-                      >
-                        {s.status === 'Active' ? (language === 'TH' ? 'ประจำการ' : 'Active') : (language === 'TH' ? 'ออกกะ' : 'Offline')}
-                      </button>
-                    </td>
-                    <td className="py-3 px-3 text-center">
-                      {s.role !== 'Super Admin' ? (
-                        <button
-                          onClick={() => handleDeleteStaff(s.id)}
-                          className="p-1 border text-red-600 hover:bg-red-50 text-red-600 inline-flex items-center justify-center rounded-md border-red-100"
-                        >
-                          <Trash2 size={12} />
-                        </button>
-                      ) : (
-                        <span className="text-zinc-400 italic font-mono text-[9px]">Root</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+	          <div className="overflow-x-auto text-xs">
+	            <table className="w-full text-left border-collapse">
+	              <thead>
+	                <tr className="border-b border-[#E6DFD9] bg-stone-50/50">
+	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Username' : 'Username'}</th>
+	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Password' : 'Password'}</th>
+	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Role' : 'Role'}</th>
+	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'สาขาที่ดูแล' : 'Assigned Branch'}</th>
+	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider text-center">{language === 'TH' ? 'Actions' : 'Actions'}</th>
+	                </tr>
+	              </thead>
+	              <tbody className="divide-y divide-zinc-100 text-zinc-700">
+		                {accountRows.map(s => (
+	                  <tr key={s.id} className="hover:bg-amber-50/5 transition-colors">
+	                    <td className="py-3 px-3">
+	                      <div className="font-mono font-bold text-zinc-900 flex items-center gap-1.5">
+	                        {isProtectedAdmin(s) && <span aria-label="locked">🔒</span>}
+	                        {accountUsername(s)}
+	                      </div>
+	                    </td>
+	                    <td className="py-3 px-3 font-mono text-zinc-700">
+	                      {maskedPassword}
+	                    </td>
+	                    <td className="py-3 px-3">
+	                      <span className={`px-2 py-0.5 font-bold rounded-md border text-[9px] ${isProtectedAdmin(s) ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-[#EAD1A8]/20 text-neutral-800 border-yellow-200'}`}>
+	                        {s.role}
+	                      </span>
+	                    </td>
+	                    <td className="py-3 px-3 font-medium text-zinc-600">
+	                      {s.branch}
+	                    </td>
+	                    <td className="py-3 px-3">
+	                      {isProtectedAdmin(s) ? (
+	                        <span className="text-[10px] font-bold text-zinc-500 bg-zinc-100 border border-zinc-200 px-2 py-1 rounded-md inline-flex items-center gap-1">
+	                          🔒 {language === 'TH' ? 'Protected System Account' : 'Protected System Account'}
+	                        </span>
+	                      ) : (
+	                        <div className="flex items-center justify-center gap-1.5">
+	                          <button onClick={() => handleEditAccount(s)} className="px-2 py-1 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 rounded-md text-[10px] font-bold">
+	                            {language === 'TH' ? 'แก้ไข' : 'Edit'}
+	                          </button>
+	                          <button onClick={() => setStaff((prev: Staff[]) => prev.filter(item => item.id !== s.id))} className="px-2 py-1 border border-red-100 hover:bg-red-50 text-red-600 rounded-md text-[10px] font-bold inline-flex items-center gap-1">
+	                            <Trash2 size={11} /> {language === 'TH' ? 'ลบ' : 'Delete'}
+	                          </button>
+	                        </div>
+	                      )}
+	                    </td>
+	                  </tr>
+	                ))}
               </tbody>
             </table>
           </div>
@@ -836,73 +886,70 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
 
         {/* Add staff panel sidebar */}
         <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs self-start">
-          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
-            <h3 className="font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
-              <span>{language === 'TH' ? 'พนักงานขึ้นดัชนีด่วน' : 'Staff Quick Register'}</span>
-            </h3>
-            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'เก็บบันทึกสัญญาเพิ่มชื่อใหม่ในสารระบบ' : 'Registers a new employee into branches database'}</p>
-          </div>
+	          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
+	            <h3 className="font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
+	              <span>{editingId ? (language === 'TH' ? 'แก้ไขบัญชีผู้จัดการสาขา' : 'Edit Branch Manager Account') : (language === 'TH' ? 'เพิ่มบัญชีผู้จัดการสาขา' : 'Add Branch Manager Account')}</span>
+	            </h3>
+	            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'Role ถูกกำหนดเป็น Branch Manager เท่านั้น' : 'Role is fixed to Branch Manager only.'}</p>
+	          </div>
 
-          <form onSubmit={handleAddStaff} className="p-4 space-y-4 text-xs font-sans text-zinc-600">
-            <div className="space-y-1">
-              <label className="font-bold">{language === 'TH' ? 'ชื่อและนามสกุลจริง:' : 'Staff Name:'}</label>
-              <input 
-                type="text" 
-                required
-                placeholder="e.g. Somsak Jai..."
-                value={newStaffName}
-                onChange={e => setNewStaffName(e.target.value)}
-                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none"
-              />
-            </div>
+	          <form onSubmit={handleSubmitAccount} className="p-4 space-y-4 text-xs font-sans text-zinc-600">
+	            <div className="space-y-1">
+	              <label className="font-bold">Username *</label>
+	              <input 
+	                type="text" 
+	                required
+	                placeholder="central.manager"
+	                value={username}
+	                onChange={e => { setUsername(e.target.value); setFormError(''); }}
+	                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none font-mono"
+	              />
+	            </div>
 
-            <div className="space-y-1">
-              <label className="font-bold">{language === 'TH' ? 'อีเมลพนักงานองค์กร:' : 'Corporate Email:'}</label>
-              <input 
-                type="email" 
-                required
-                placeholder="somchai.s@quickcoffee.com"
-                value={newStaffEmail}
-                onChange={e => setNewStaffEmail(e.target.value)}
-                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none font-mono"
-              />
-            </div>
+	            <div className="space-y-1">
+	              <label className="font-bold">Password *</label>
+	              <input 
+	                type="text" 
+	                required
+	                placeholder="Branch@123"
+	                value={password}
+	                onChange={e => { setPassword(e.target.value); setFormError(''); }}
+	                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none font-mono"
+	              />
+	            </div>
 
-            <div className="grid grid-cols-2 gap-2.5">
-              <div className="space-y-1">
-                <label className="font-bold">{language === 'TH' ? 'หัวข้อตำแหน่งภารกิจ:' : 'Role Title:'}</label>
-                <select
-                  value={newStaffRole}
-                  onChange={e => setNewStaffRole(e.target.value as any)}
-                  className="w-full text-xs p-2.5 bg-sky-50/20 border rounded-lg focus:outline-none"
-                >
-                  <option value="Barista">Barista</option>
-                  <option value="Branch Manager">Branch Manager</option>
-                </select>
-              </div>
+	            <div className="space-y-1">
+	              <label className="font-bold">{language === 'TH' ? 'Role:' : 'Role:'}</label>
+	              <div className="w-full text-xs p-2.5 bg-[#EAD1A8]/20 border border-yellow-200 rounded-lg font-bold text-zinc-700">
+	                Branch Manager
+	              </div>
+	            </div>
 
-              <div className="space-y-1">
-                <label className="font-bold">{language === 'TH' ? 'มอบหมายแคว้นงาน:' : 'Assign Area:'}</label>
-                <select
-                  value={newStaffBranch}
-                  onChange={e => setNewStaffBranch(e.target.value as any)}
-                  className="w-full text-xs p-2.5 bg-sky-50/20 border rounded-lg focus:outline-none"
-                >
-                  <option value="Central Plaza">Central Plaza</option>
-                  <option value="Siam Square">Siam Square</option>
-                  <option value="Mega Bangna">Mega Bangna</option>
-                  <option value="The Mall Korat">The Mall Korat</option>
-                </select>
-              </div>
-            </div>
+	            <div className="space-y-1">
+	              <label className="font-bold">{language === 'TH' ? 'สาขาที่ดูแล *' : 'Assigned Branch *'}</label>
+	              <select
+	                value={assignedBranch}
+	                onChange={e => { setAssignedBranch(e.target.value as Exclude<Branch, 'All Branches'>); setFormError(''); }}
+	                className="w-full text-xs p-2.5 bg-sky-50/20 border rounded-lg focus:outline-none"
+	              >
+	                {branches.map(branch => <option key={branch} value={branch}>{branch}</option>)}
+	              </select>
+	            </div>
 
-            <button
-              type="submit"
-              className="w-full py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-xs font-bold rounded-lg shadow-xs mt-2"
-            >
-              {language === 'TH' ? 'ยืนยันสมัครพนักงาน' : 'Confirm Registration'}
-            </button>
-          </form>
+	            {formError && <div className="p-2 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[11px] font-bold">{formError}</div>}
+
+	            <button
+	              type="submit"
+	              className="w-full py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-xs font-bold rounded-lg shadow-xs mt-2"
+	            >
+	              {editingId ? (language === 'TH' ? 'บันทึกการแก้ไข' : 'Save Changes') : (language === 'TH' ? 'สร้างบัญชี' : 'Create Account')}
+	            </button>
+	            {editingId && (
+	              <button type="button" onClick={resetForm} className="w-full py-1.5 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 font-sans text-[11px] font-bold rounded-lg">
+	                {language === 'TH' ? 'ยกเลิกการแก้ไข' : 'Cancel Edit'}
+	              </button>
+	            )}
+	          </form>
         </div>
 
       </div>
@@ -930,6 +977,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
   const completedOrders = filteredOrders.filter(o => o.status === 'Completed' || o.status === 'Ready For Pickup');
   const isSystemCancelled = (o: Order) => ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(o.status) && (
     o.status === 'Auto Cancelled' ||
+    o.status === 'Cancelled' ||
     o.cancelledBy === 'System' ||
     o.cancellationReason === 'Customer Did Not Pay' ||
     o.cancellationReason === 'Payment Timeout' ||
@@ -941,7 +989,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
   const totalRevenue = completedOrders.reduce((sum, o) => sum + o.amount, 0);
   const totalOrdersCount = filteredOrders.length;
   const autoCancelledCount = filteredOrders.filter(isSystemCancelled).length;
-  const staffCancelledCount = filteredOrders.filter(o => ['Cancelled', 'Cancelled by Staff'].includes(o.status) && !isSystemCancelled(o)).length;
+  const staffCancelledCount = filteredOrders.filter(o => o.status === 'Cancelled by Staff').length;
   // Dynamic coupon discount estimation (averages 12% on applicable completed bills)
   const totalDiscount = completedOrders.reduce((sum, o) => {
     const isCouponUsed = o.id.includes('2') || o.id.includes('6') || o.id.includes('9');
@@ -1384,47 +1432,33 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
   const [startDate, setStartDate] = useState('2026-06-01');
   const [endDate, setEndDate] = useState('2026-06-30');
 
-  // Helper helper to dynamically map operational actor, role, action type and IP address deterministically
+  // Prefer explicit audit metadata from the seed/current actions, with a small fallback for legacy entries.
   const getAuditDetails = (act: Activity) => {
     const text = act.text.toLowerCase();
-    
-    let ip = '192.168.15.42';
-    if (act.id.includes('1') || act.id.includes('5')) ip = '192.168.15.110';
-    if (act.id.includes('2') || act.id.includes('7')) ip = '10.0.4.152';
-    if (act.id.includes('3') || act.id.includes('8')) ip = '172.16.85.204';
-    if (act.id.includes('4') || act.id.includes('9')) ip = '192.168.10.82';
 
-    let user = 'Super Admin';
-    let role = 'Admin';
-    if (text.includes('somsak')) {
-      user = 'Somsak Kaew';
+    let user = act.username || 'admin';
+    let role = act.role || 'Super Admin';
+    if (!act.username && !act.role && text.includes('system')) {
+      user = 'system';
+      role = 'System';
+    } else if (!act.username && !act.role && (act.type === 'order' || act.type === 'inventory' || act.type === 'stock')) {
+      user = text.includes('mega') ? 'mega.manager' : 'central.manager';
       role = 'Branch Manager';
-    } else if (text.includes('janejira')) {
-      user = 'Janejira Siri';
-      role = 'Barista';
-    } else if (act.type === 'payment') {
-      user = 'Somsak Kaew';
-      role = 'Branch Manager';
-    } else if (act.type === 'stock') {
-      user = 'Janejira Siri';
-      role = 'Barista';
-    } else if (act.type === 'member') {
-      user = 'Super Admin';
-      role = 'Admin';
     }
 
-    let actionType = 'Update';
-    if (text.includes('payment verified') || text.includes('payment verification')) actionType = 'Payment Verified';
-    else if (text.includes('payment rejected') || text.includes('payment rejection') || text.includes('rejected')) actionType = 'Payment Rejected';
-    else if (text.includes('queue generated') || text.includes('queue Q-') || text.includes('queue q-') || text.includes('queue generated')) actionType = 'Queue Generated';
-    else if (text.includes('order completed') || text.includes('completed')) actionType = 'Order Completed';
-    else if (text.includes('login') || text.includes('เข้าสู่ระบบ')) actionType = 'Login';
-    else if (text.includes('logout') || text.includes('ออกจากระบบ')) actionType = 'Logout';
-    else if (text.includes('create') || text.includes('สร้าง') || text.includes('add') || text.includes('เพิ่ม')) actionType = 'Create';
-    else if (text.includes('delete') || text.includes('ลบ')) actionType = 'Delete';
-    else if (text.includes('confirm') || text.includes('ยืนยัน') || text.includes('verify') || text.includes('ตรวจสอบ')) actionType = 'Confirm';
+    let actionType = act.action || act.text;
+    if (!act.action && (text.includes('payment verified') || text.includes('payment verification'))) actionType = 'Payment Verified';
+    else if (!act.action && (text.includes('payment rejected') || text.includes('payment rejection') || text.includes('rejected'))) actionType = 'Payment Rejected';
+    else if (!act.action && (text.includes('queue generated') || text.includes('queue q-') || text.includes('called queue'))) actionType = 'Called Queue';
+    else if (!act.action && (text.includes('order completed') || text.includes('completed'))) actionType = 'Completed Order';
+    else if (!act.action && (text.includes('login') || text.includes('เข้าสู่ระบบ'))) actionType = 'Login';
+    else if (!act.action && (text.includes('logout') || text.includes('ออกจากระบบ'))) actionType = 'Logout';
+    else if (!act.action && (text.includes('branch') || text.includes('status to'))) actionType = 'Changed Branch Status';
+    else if (!act.action && (text.includes('create') || text.includes('สร้าง') || text.includes('add') || text.includes('เพิ่ม'))) actionType = 'Created Record';
+    else if (!act.action && (text.includes('delete') || text.includes('ลบ'))) actionType = 'Deleted Record';
+    else if (!act.action && (text.includes('confirm') || text.includes('ยืนยัน') || text.includes('verify') || text.includes('ตรวจสอบ'))) actionType = 'Confirmed Record';
 
-    return { user, role, actionType, ip };
+    return { user, role, actionType };
   };
 
   const filteredActivities = activities.filter(act => {
@@ -1436,23 +1470,20 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
       
     const moduleMatched = selectedModule === 'All' || act.type === selectedModule.toLowerCase();
     const userMatched = selectedUser === 'All' || details.user === selectedUser;
-    const actionMatched = selectedActionType === 'All' || details.actionType === selectedActionType;
+    const actionMatched = selectedActionType === 'All' || details.actionType.toLowerCase().includes(selectedActionType.toLowerCase());
     
     return textMatched && moduleMatched && userMatched && actionMatched;
   });
 
   const handleExportCSV = () => {
-    const headers = ['Timestamp', 'User', 'Role', 'Action', 'Module', 'Description', 'IP Address'];
+    const headers = ['Date/Time', 'Username', 'Role', 'Action'];
     const rows = filteredActivities.map(act => {
       const details = getAuditDetails(act);
       return [
         act.time,
         details.user,
         details.role,
-        details.actionType,
-        act.type.toUpperCase(),
-        act.text.replace(/"/g, '""'),
-        details.ip
+        details.actionType.replace(/"/g, '""')
       ];
     });
     
@@ -1514,11 +1545,14 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
               className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ทุกโมดูลระบบ' : 'All Modules'}</option>
-              <option value="Order">Order</option>
-              <option value="Payment">Payment</option>
-              <option value="Stock">Stock</option>
-              <option value="Coupon">Coupon</option>
-              <option value="Member">Member</option>
+              <option value="Branch">Branch Management</option>
+              <option value="Menu">Menu Management</option>
+              <option value="Promotion">Promotion Management</option>
+              <option value="Order">Order Management</option>
+              <option value="CRM">CRM</option>
+              <option value="Staff">Staff Management</option>
+              <option value="Inventory">Inventory</option>
+              <option value="System">System</option>
             </select>
           </div>
 
@@ -1530,9 +1564,10 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
               className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ผู้ดำเนินงานทั้งหมด' : 'All Operators'}</option>
-              <option value="Super Admin">Super Admin</option>
-              <option value="Somsak Kaew">Somsak Kaew (Manager)</option>
-              <option value="Janejira Siri">Janejira Siri (Barista)</option>
+              <option value="admin">admin (Super Admin)</option>
+              <option value="central.manager">central.manager</option>
+              <option value="mega.manager">mega.manager</option>
+              <option value="system">system</option>
             </select>
           </div>
 
@@ -1544,12 +1579,17 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
               className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ประเภทกิจกรรมทั้งหมด' : 'All Actions'}</option>
-              <option value="Create">Create (สร้าง)</option>
-              <option value="Update">Update (ปรับปรุง)</option>
-              <option value="Delete">Delete (ลบออก)</option>
-              <option value="Confirm">Confirm (ยืนยัน)</option>
-              <option value="Login">Login (เข้าระบบ)</option>
-              <option value="Logout">Logout (ออกระเบียบ)</option>
+              <option value="Created">Created</option>
+              <option value="Updated">Updated</option>
+              <option value="Changed">Changed Status</option>
+              <option value="Published">Published</option>
+              <option value="Scheduled">Scheduled</option>
+              <option value="Called Queue">Called Queue</option>
+              <option value="Recalled Queue">Recalled Queue</option>
+              <option value="Completed">Completed</option>
+              <option value="Cancelled">Cancelled</option>
+              <option value="Exported">Exported</option>
+              <option value="Reset Password">Reset Password</option>
             </select>
           </div>
         </div>
@@ -1583,17 +1623,16 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
           <table className="w-full text-left text-xs text-zinc-600 border-collapse">
             <thead>
               <tr className="bg-stone-50 text-[10.5px] uppercase font-bold text-zinc-500 tracking-wider border-b font-mono">
-                <th className="p-3 w-40">{language === 'TH' ? 'เวลาล๊อกบิล' : 'Timestamp'}</th>
-                <th className="p-3 w-48">{language === 'TH' ? 'ชื่อผู้จัดการ / สิทธิ์' : 'User / Role'}</th>
-                <th className="p-3 w-44">{language === 'TH' ? 'ประเภท / โมดูล' : 'Action / Module'}</th>
-                <th className="p-3">{language === 'TH' ? 'ข้อความรายละเอียดงาน' : 'Log Description'}</th>
-                <th className="p-3 w-32">{language === 'TH' ? 'ไอพีแอดเดรส' : 'IP Address'}</th>
+                <th className="p-3 w-44">{language === 'TH' ? 'วัน/เวลา' : 'Date/Time'}</th>
+                <th className="p-3 w-48">{language === 'TH' ? 'ชื่อผู้ใช้' : 'Username'}</th>
+                <th className="p-3 w-44">{language === 'TH' ? 'บทบาท' : 'Role'}</th>
+                <th className="p-3">{language === 'TH' ? 'กิจกรรม' : 'Action'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 font-sans">
               {filteredActivities.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="p-10 text-center text-zinc-400 text-xs">
+                  <td colSpan={4} className="p-10 text-center text-zinc-400 text-xs">
                     {language === 'TH' ? 'ไม่พบบันทึกประวัติกิจกรรมตามตัวกรอง' : 'No audit trace database records found.'}
                   </td>
                 </tr>
@@ -1607,28 +1646,19 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
                       </td>
                       <td className="p-3">
                         <div className="font-bold text-zinc-800 leading-none">{details.user}</div>
-                        <span className="text-[9px] px-1 py-0.2 rounded bg-stone-100 text-zinc-500 font-bold inline-block mt-1 font-mono uppercase">
+                      </td>
+                      <td className="p-3">
+                        <span className={`text-[9.5px] px-2 py-1 rounded font-mono font-extrabold uppercase inline-block ${
+                          details.role === 'Super Admin' ? 'bg-amber-50 text-amber-800' :
+                          details.role === 'Branch Manager' ? 'bg-sky-50 text-sky-800' :
+                          'bg-stone-100 text-stone-650'
+                        }`}>
                           {details.role}
                         </span>
                       </td>
-                      <td className="p-3 space-y-1">
-                        <span className={`text-[9.5px] px-1.5 py-0.2 rounded font-mono font-extrabold uppercase inline-block ${
-                          details.actionType === 'Create' ? 'bg-emerald-50 text-emerald-800' :
-                          details.actionType === 'Delete' ? 'bg-red-50 text-red-700' :
-                          details.actionType === 'Confirm' ? 'bg-sky-50 text-sky-800' : 'bg-stone-100 text-stone-650'
-                        }`}>
-                          {details.actionType}
-                        </span>
-                        <span className="text-[9px] font-mono text-zinc-400 block uppercase font-bold">
-                          MODULE: {act.type}
-                        </span>
-                      </td>
                       <td className="p-3">
-                        <span className="text-zinc-800 font-medium leading-relaxed block">{act.text}</span>
-                        <span className="text-[9px] text-zinc-450 font-mono block mt-0.5">PAYLOAD ID: {act.id}</span>
-                      </td>
-                      <td className="p-3 font-mono text-zinc-400 text-[10.5px]">
-                        {details.ip}
+                        <span className="text-zinc-800 font-medium leading-relaxed block">{details.actionType}</span>
+                        <span className="text-[9px] text-zinc-450 font-mono block mt-0.5 uppercase">MODULE: {act.type}</span>
                       </td>
                     </tr>
                   );

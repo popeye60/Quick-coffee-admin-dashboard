@@ -157,8 +157,11 @@ export interface Activity {
   id: string;
   text: string;
   time: string;
-  type: 'order' | 'payment' | 'stock' | 'coupon' | 'member';
+  type: 'order' | 'payment' | 'stock' | 'coupon' | 'member' | 'branch' | 'menu' | 'promotion' | 'staff' | 'inventory' | 'crm' | 'system';
   status: 'New' | 'Paid' | 'Ready' | 'Sent' | 'Alert';
+  username?: string;
+  role?: 'Super Admin' | 'Branch Manager' | 'System';
+  action?: string;
 }
 
 export interface Member {
@@ -166,6 +169,7 @@ export interface Member {
   name: string;
   phone: string;
   email: string;
+  dateOfBirth?: string;
   joinDate: string;
   tier: 'Gold' | 'Silver' | 'Bronze';
   points: number;
@@ -176,6 +180,8 @@ export interface Member {
 export interface Staff {
   id: string;
   name: string;
+  username?: string;
+  password?: string;
   role: 'Super Admin' | 'Branch Manager' | 'Barista';
   branch: Branch;
   email: string;

@@ -16,6 +16,7 @@ import OtherViews from './components/OtherViews';
 import BranchPricingView from './components/BranchPricingView';
 import BranchManagementView from './components/BranchManagementView';
 import CentralWarehouseView from './components/CentralWarehouseView';
+import QueueDisplayScreen from './components/QueueDisplayScreen';
 import { 
   INITIAL_MENU_ITEMS, 
   INITIAL_ORDERS, 
@@ -31,6 +32,80 @@ import { verifySlip, applyVerificationResult } from './services/paymentService';
 
 const ADMIN_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management', 'Branches', 'Menu & Pricing', 'Warehouse', 'Promotions', 'Coupons', 'Members', 'Staff Management', 'Reports', 'Audit Log'];
 const STAFF_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management'];
+const ORDER_SEED_VERSION = '2026-06-18-waiting-payment-label-v1';
+const ACTIVITY_SEED_VERSION = '2026-06-18-activity-logs-v1';
+
+const QUEUED_STATUSES: OrderStatus[] = ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed', 'Cancelled by Staff'];
+
+const normalizeCancellationState = (order: Order): Order => {
+  if (order.status === 'Cancelled by Staff') {
+    const queueNo = order.queueNo || order.originalQueueNo;
+    const hasCompleteAudit = !!queueNo && !!order.cancelledBy && !!order.cancellationReason && !!order.cancelledAt;
+
+    if (!hasCompleteAudit) {
+      return {
+        ...order,
+        status: 'Auto Cancelled',
+        queueNo: '',
+        paymentStatus: order.paymentStatus === 'Paid' ? 'Pending Payment' : order.paymentStatus,
+        cancellationReason: order.cancellationReason || 'Payment Timeout',
+        cancellationNote: order.cancellationNote || 'Payment timeout before queue generation',
+        cancelledBy: 'System',
+        cancelledAt: order.cancelledAt || order.orderTime,
+        originalOrderStatus: order.originalOrderStatus || 'Pending Payment',
+        originalQueueNo: undefined,
+      };
+    }
+
+    return {
+      ...order,
+      queueNo,
+      paymentStatus: 'Paid',
+      originalQueueNo: order.originalQueueNo || queueNo,
+      originalOrderStatus: order.originalOrderStatus || 'Preparing',
+    };
+  }
+
+  if (order.status === 'Cancelled' && !order.queueNo && order.paymentStatus !== 'Paid') {
+    return {
+      ...order,
+      status: 'Auto Cancelled',
+      cancellationReason: order.cancellationReason || 'Payment Timeout',
+      cancellationNote: order.cancellationNote || 'Payment timeout before queue generation',
+      cancelledBy: 'System',
+      cancelledAt: order.cancelledAt || order.orderTime,
+      originalOrderStatus: order.originalOrderStatus || 'Pending Payment',
+      originalQueueNo: undefined,
+    };
+  }
+
+  return order;
+};
+
+const normalizeBranchQueueNumbers = (records: Order[]): Order[] => {
+  const queueById: Record<string, string> = {};
+  const prefilled = records.map(normalizeCancellationState);
+
+  const queued = prefilled
+    .filter(order => order.queueNo && QUEUED_STATUSES.includes(order.status))
+    .sort((a, b) => a.branch.localeCompare(b.branch) || a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
+  const nextByBranch: Record<string, number> = {};
+  queued.forEach(order => {
+    const next = (nextByBranch[order.branch] || 0) + 1;
+    nextByBranch[order.branch] = next;
+    queueById[order.id] = String(next).padStart(3, '0');
+  });
+
+  return prefilled.map(order => {
+    if (!order.queueNo || !QUEUED_STATUSES.includes(order.status)) return order;
+    const queueNo = queueById[order.id] || order.queueNo;
+    return {
+      ...order,
+      queueNo,
+      originalQueueNo: order.status === 'Cancelled by Staff' ? queueNo : order.originalQueueNo,
+    };
+  });
+};
 
 export default function App() {
   // Navigation states
@@ -63,14 +138,16 @@ export default function App() {
     // Orders
     const localOrd = localStorage.getItem('qc_orders');
     const localDemoOrd = localStorage.getItem('quick_coffee_demo_payment_orders_v2');
+    const localOrderSeedVersion = localStorage.getItem('qc_orders_seed_version');
+    const shouldResetOrderSeed = localOrderSeedVersion !== ORDER_SEED_VERSION;
     let loadedOrders: Order[] = [];
-    if (localOrd) {
+    if (localOrd && !shouldResetOrderSeed) {
       loadedOrders = JSON.parse(localOrd);
     } else {
       loadedOrders = [...INITIAL_ORDERS];
     }
 
-    if (localDemoOrd) {
+    if (localDemoOrd && !shouldResetOrderSeed) {
       try {
         const parsedDemo = JSON.parse(localDemoOrd);
         if (parsedDemo && Array.isArray(parsedDemo)) {
@@ -95,8 +172,10 @@ export default function App() {
       }
     }
 
-    setOrders(loadedOrders);
-    localStorage.setItem('qc_orders', JSON.stringify(loadedOrders));
+    const normalizedOrders = normalizeBranchQueueNumbers(loadedOrders);
+    setOrders(normalizedOrders);
+    localStorage.setItem('qc_orders', JSON.stringify(normalizedOrders));
+    localStorage.setItem('qc_orders_seed_version', ORDER_SEED_VERSION);
 
     // Ingredients
     setInventoryLoading(true);
@@ -143,11 +222,13 @@ export default function App() {
 
     // Activities log
     const localAct = localStorage.getItem('qc_activities');
-    if (localAct) {
+    const localActivitySeedVersion = localStorage.getItem('qc_activities_seed_version');
+    if (localAct && localActivitySeedVersion === ACTIVITY_SEED_VERSION) {
       setActivities(JSON.parse(localAct));
     } else {
       setActivities(INITIAL_ACTIVITIES);
       localStorage.setItem('qc_activities', JSON.stringify(INITIAL_ACTIVITIES));
+      localStorage.setItem('qc_activities_seed_version', ACTIVITY_SEED_VERSION);
     }
 
     // CRM Members
@@ -455,7 +536,7 @@ export default function App() {
           });
 
           // Handle Queue Called or explicit timeline additions
-          if (newStatus === 'Queue Called' && !updatedTimeline.some(t => t.status === 'Queue Called')) {
+          if (newStatus === 'Queue Called') {
             updatedTimeline.push({
               status: 'Queue Called',
               time: new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false }),
@@ -515,10 +596,13 @@ export default function App() {
           status: 'Alert'
         };
         setActivities(prev => [act1, ...prev]);
-      } else if (newStatus === 'Queue Called' || (newStatus === 'Ready For Pickup' && !currentOrder.timeline.some(t => t.status === 'Queue Called'))) {
+      } else if (newStatus === 'Queue Called') {
+        const recalled = currentOrder.status === 'Queue Called';
         const act1: Activity = {
           id: `ACT-PV-${Date.now()}-qc`,
-          text: `Q-${qNum} called for pickup — #${orderId} at ${branchName}`,
+          text: recalled
+            ? `Queue Q-${qNum} recalled at ${stamp} — #${orderId} at ${branchName}`
+            : `Queue Q-${qNum} called at ${stamp} — #${orderId} at ${branchName}`,
           time: `Just now, ${stamp}`,
           type: 'order',
           status: 'Ready'
@@ -655,12 +739,16 @@ export default function App() {
 
   useEffect(() => {
     const route = `${window.location.pathname}${window.location.hash}`.toLowerCase();
-    const removedRoutes = ['queue-pickup', 'pickup-system', 'queue-display', 'queue-display-management', 'queue-monitor', 'system-settings', 'settings'];
+    const removedRoutes = ['queue-pickup', 'pickup-system', 'queue-display-management', 'queue-monitor', 'system-settings', 'settings'];
     if (removedRoutes.some(removed => route.includes(removed))) {
       window.history.replaceState(null, '', '/');
       setCurrentTab('Dashboard');
     }
   }, []);
+
+  if (window.location.pathname.toLowerCase().includes('queue-display')) {
+    return <QueueDisplayScreen orders={orders} />;
+  }
 
   return (
     <div className="min-h-screen bg-coffee-bg flex text-coffee font-sans">
@@ -790,6 +878,7 @@ export default function App() {
               orders={orders}
               roleMode={roleMode}
               staffAssignedBranch={staffAssignedBranch}
+              setActivities={setActivities}
             />
           )}
 

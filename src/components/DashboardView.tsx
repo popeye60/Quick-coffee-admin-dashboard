@@ -102,6 +102,7 @@ export default function DashboardView({
   const isSystemCancelled = (o: Order) =>
     ['Cancelled', 'Auto Cancelled', 'Cancelled by Staff'].includes(o.status) && (
       o.status === 'Auto Cancelled' ||
+      o.status === 'Cancelled' ||
       o.cancelledBy === 'System' ||
       o.cancellationReason === 'Customer Did Not Pay' ||
       o.cancellationReason === 'Payment Timeout' ||
@@ -186,7 +187,7 @@ export default function DashboardView({
 
   // Cancellation & refund metrics
   const autoCancelledCount = branchFilteredOrders.filter(isSystemCancelled).length;
-  const staffCancelledCount = branchFilteredOrders.filter(o => ['Cancelled', 'Cancelled by Staff'].includes(o.status) && !isSystemCancelled(o)).length;
+  const staffCancelledCount = branchFilteredOrders.filter(o => o.status === 'Cancelled by Staff').length;
   const refundPendingCount = branchFilteredOrders.filter(o => o.refundStatus === 'Refund Pending').length;
   const refundCompletedCount = branchFilteredOrders.filter(o => o.refundStatus === 'Refund Completed').length;
 
