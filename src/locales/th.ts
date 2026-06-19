@@ -3,7 +3,7 @@ export const th = {
     dashboard: "แดชบอร์ด",
     orders: "จัดการออเดอร์",
     payment_verification: "ตรวจสอบการชำระเงิน",
-    stock_management: "ตรวจนับสต็อกประจำวัน",
+    stock_management: "ตรวจนับสต็อก",
     branches: "จัดการสาขา",
     menu_pricing: "รายการอาหารและราคา",
     warehouse: "คลังสินค้ากลาง",

@@ -9,7 +9,7 @@ import Header from './components/Header';
 import DashboardView from './components/DashboardView';
 import OrdersView from './components/OrdersView';
 import PaymentVerificationView from './components/PaymentVerificationView';
-import StockManagementView, { type StockGateStatus } from './components/StockManagementView';
+import StockManagementView, { resetDailyStockSessionRecords, type StockGateStatus } from './components/StockManagementView';
 import MenuPricingView from './components/MenuPricingView';
 import CouponsView from './components/CouponsView';
 import OtherViews from './components/OtherViews';
@@ -27,14 +27,30 @@ import {
   INITIAL_STAFF, 
   INITIAL_PROMOTIONS 
 } from './mockData';
-import { Order, OrderStatus, Ingredient, CoffeeItem, Coupon, Activity, Member, Staff, Promotion, Branch, BranchPrice, CancellationReason, RefundStatus } from './types';
+import { Order, OrderStatus, Ingredient, CoffeeItem, Coupon, Activity, Member, Staff, Promotion, Branch, BranchPrice, BranchStatus, CancellationReason, RefundStatus } from './types';
 import { verifySlip, applyVerificationResult } from './services/paymentService';
 
 const ADMIN_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management', 'Branches', 'Menu & Pricing', 'Warehouse', 'Promotions', 'Coupons', 'Members', 'Staff Management', 'Reports', 'Audit Log'];
 const STAFF_ALLOWED_TABS: SidebarTab[] = ['Dashboard', 'Orders', 'Stock Management'];
-const ORDER_SEED_VERSION = '2026-06-18-waiting-payment-label-v1';
-const ACTIVITY_SEED_VERSION = '2026-06-18-activity-logs-v1';
-const PROMOTION_SEED_VERSION = '2026-06-18-promotion-delete-v1';
+const BRANCHES_FOR_PRICING: Exclude<Branch, 'All Branches'>[] = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
+const DEFAULT_BRANCH_STATUSES: Record<Exclude<Branch, 'All Branches'>, BranchStatus> = {
+  'Central Plaza': 'Open',
+  'Siam Square': 'Open',
+  'Mega Bangna': 'Temporarily Closed',
+  'The Mall Korat': 'Open',
+};
+const deepClone = <T,>(value: T): T => {
+  if (typeof structuredClone === 'function') return structuredClone(value);
+  return JSON.parse(JSON.stringify(value)) as T;
+};
+const branchPricesFromMenu = (records: CoffeeItem[]): BranchPrice[] => records.flatMap(item =>
+  BRANCHES_FOR_PRICING.map(branch => ({
+    branch,
+    productId: item.id,
+    sellingPrice: item.branchPrices?.[branch] ?? item.price,
+    isAvailable: item.branchAvailable?.[branch] ?? true,
+  }))
+);
 
 const QUEUED_STATUSES: OrderStatus[] = ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed', 'Cancelled by Staff'];
 
@@ -86,14 +102,16 @@ const normalizeCancellationState = (order: Order): Order => {
 const normalizeBranchQueueNumbers = (records: Order[]): Order[] => {
   const queueById: Record<string, string> = {};
   const prefilled = records.map(normalizeCancellationState);
+  const orderDateKey = (order: Order) => order.orderTime.match(/^(\d{1,2}\s+\w+\s+\d{4})/)?.[1] || 'unknown-date';
 
   const queued = prefilled
     .filter(order => order.queueNo && QUEUED_STATUSES.includes(order.status))
-    .sort((a, b) => a.branch.localeCompare(b.branch) || a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
-  const nextByBranch: Record<string, number> = {};
+    .sort((a, b) => a.branch.localeCompare(b.branch) || orderDateKey(a).localeCompare(orderDateKey(b)) || a.time.localeCompare(b.time) || a.id.localeCompare(b.id));
+  const nextByBranchDate: Record<string, number> = {};
   queued.forEach(order => {
-    const next = (nextByBranch[order.branch] || 0) + 1;
-    nextByBranch[order.branch] = next;
+    const groupKey = `${order.branch}:${orderDateKey(order)}`;
+    const next = (nextByBranchDate[groupKey] || 0) + 1;
+    nextByBranchDate[groupKey] = next;
     queueById[order.id] = String(next).padStart(3, '0');
   });
 
@@ -106,6 +124,22 @@ const normalizeBranchQueueNumbers = (records: Order[]): Order[] => {
       originalQueueNo: order.status === 'Cancelled by Staff' ? queueNo : order.originalQueueNo,
     };
   });
+};
+
+const createDefaultDemoState = () => {
+  const menuItems = deepClone(INITIAL_MENU_ITEMS);
+  return {
+    orders: normalizeBranchQueueNumbers(deepClone(INITIAL_ORDERS)),
+    ingredients: deepClone(INITIAL_INGREDIENTS),
+    menuItems,
+    coupons: deepClone(INITIAL_COUPONS),
+    activities: deepClone(INITIAL_ACTIVITIES),
+    members: deepClone(INITIAL_MEMBERS),
+    staff: deepClone(INITIAL_STAFF),
+    promotions: deepClone(INITIAL_PROMOTIONS),
+    branchPrices: branchPricesFromMenu(menuItems),
+    branchStatuses: deepClone(DEFAULT_BRANCH_STATUSES),
+  };
 };
 
 export default function App() {
@@ -121,7 +155,8 @@ export default function App() {
   // Selected sub-elements for cross-view wizard routing
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
 
-  // Core local states backed by Local Storage for persistent updates!
+  // Core demo states are intentionally in-memory only. Refreshing the browser
+  // rebuilds them from immutable mock data for clean repeated testing.
   const [orders, setOrders] = useState<Order[]>([]);
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [menuItems, setMenuItems] = useState<CoffeeItem[]>([]);
@@ -131,217 +166,65 @@ export default function App() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [branchPrices, setBranchPrices] = useState<BranchPrice[]>([]);
+  const [branchStatuses, setBranchStatuses] = useState<Record<Exclude<Branch, 'All Branches'>, BranchStatus>>(deepClone(DEFAULT_BRANCH_STATUSES));
+  const [demoResetVersion, setDemoResetVersion] = useState(0);
   const [inventoryLoading, setInventoryLoading] = useState(true);
   const [inventoryError, setInventoryError] = useState<string | null>(null);
   const [stockGateStatus, setStockGateStatus] = useState<StockGateStatus | null>(null);
-  const staffOpeningGatePassed = roleMode !== 'Staff' || (stockGateStatus?.branch === staffAssignedBranch && stockGateStatus.openingConfirmed);
+  const staffBranchKey = (BRANCHES_FOR_PRICING.includes(staffAssignedBranch as Exclude<Branch, 'All Branches'>)
+    ? staffAssignedBranch
+    : 'Central Plaza') as Exclude<Branch, 'All Branches'>;
+  const staffBranchMasterStatus = branchStatuses[staffBranchKey] ?? 'Closed';
+  const staffOpeningConfirmed = stockGateStatus?.branch === staffAssignedBranch && stockGateStatus.openingConfirmed;
+  const staffEffectiveBranchStatus: BranchStatus = staffBranchMasterStatus === 'Closed'
+    ? 'Closed'
+    : staffBranchMasterStatus === 'Temporarily Closed'
+      ? 'Temporarily Closed'
+      : staffOpeningConfirmed
+        ? 'Open'
+        : 'Closed';
+  const headerBranchStatuses = roleMode === 'Staff'
+    ? { ...branchStatuses, [staffBranchKey]: staffEffectiveBranchStatus }
+    : branchStatuses;
+  const staffOpeningGatePassed = roleMode !== 'Staff' || (staffBranchMasterStatus === 'Open' && staffOpeningConfirmed && staffEffectiveBranchStatus === 'Open');
 
   useEffect(() => {
     setStockGateStatus(null);
   }, [staffAssignedBranch, roleMode]);
 
-  // Hydrate local states on load Mount
-  useEffect(() => {
-    // Orders
-    const localOrd = localStorage.getItem('qc_orders');
-    const localDemoOrd = localStorage.getItem('quick_coffee_demo_payment_orders_v2');
-    const localOrderSeedVersion = localStorage.getItem('qc_orders_seed_version');
-    const shouldResetOrderSeed = localOrderSeedVersion !== ORDER_SEED_VERSION;
-    let loadedOrders: Order[] = [];
-    if (localOrd && !shouldResetOrderSeed) {
-      loadedOrders = JSON.parse(localOrd);
-    } else {
-      loadedOrders = [...INITIAL_ORDERS];
-    }
-
-    if (localDemoOrd && !shouldResetOrderSeed) {
-      try {
-        const parsedDemo = JSON.parse(localDemoOrd);
-        if (parsedDemo && Array.isArray(parsedDemo)) {
-          parsedDemo.forEach((demoO: Order) => {
-            const idx = loadedOrders.findIndex(o => o.id === demoO.id);
-            if (idx >= 0) {
-              loadedOrders[idx] = {
-                ...loadedOrders[idx],
-                status: demoO.status,
-                paymentStatus: demoO.paymentStatus,
-                timeline: demoO.timeline,
-                queueNo: demoO.queueNo || loadedOrders[idx].queueNo,
-                branch: demoO.branch || loadedOrders[idx].branch,
-              };
-            } else {
-              loadedOrders.push(demoO);
-            }
-          });
-        }
-      } catch (err) {
-        console.warn(err);
-      }
-    }
-
-    const normalizedOrders = normalizeBranchQueueNumbers(loadedOrders);
-    setOrders(normalizedOrders);
-    localStorage.setItem('qc_orders', JSON.stringify(normalizedOrders));
-    localStorage.setItem('qc_orders_seed_version', ORDER_SEED_VERSION);
-
-    // Ingredients
+  const resetDemoData = () => {
     setInventoryLoading(true);
     setInventoryError(null);
-    const localIng = localStorage.getItem('qc_ingredients');
     try {
-      if (localIng !== null) {
-        const parsedIngredients = JSON.parse(localIng);
-        if (Array.isArray(parsedIngredients)) {
-          setIngredients(parsedIngredients);
-        } else {
-          setIngredients([]);
-          setInventoryError('Inventory data was not in the expected list format.');
-        }
-      } else {
-        setIngredients(INITIAL_INGREDIENTS);
-        localStorage.setItem('qc_ingredients', JSON.stringify(INITIAL_INGREDIENTS));
-      }
+      const demoState = createDefaultDemoState();
+      setOrders(demoState.orders);
+      setIngredients(demoState.ingredients);
+      setMenuItems(demoState.menuItems);
+      setCoupons(demoState.coupons);
+      setActivities(demoState.activities);
+      setMembers(demoState.members);
+      setStaff(demoState.staff);
+      setPromotions(demoState.promotions);
+      setBranchPrices(demoState.branchPrices);
+      setBranchStatuses(demoState.branchStatuses);
+      setSelectedOrderId(null);
+      setStockGateStatus(null);
+      resetDailyStockSessionRecords();
+      setDemoResetVersion(prev => prev + 1);
     } catch (err) {
-      console.error('Unable to load inventory data', err);
+      console.error('Unable to initialize demo data', err);
       setIngredients([]);
-      setInventoryError('Inventory data could not be loaded.');
+      setInventoryError('Demo inventory data could not be loaded.');
     } finally {
       setInventoryLoading(false);
     }
+  };
 
-    // MenuItems
-    const localMenu = localStorage.getItem('qc_menu');
-    if (localMenu) {
-      setMenuItems(JSON.parse(localMenu));
-    } else {
-      setMenuItems(INITIAL_MENU_ITEMS);
-      localStorage.setItem('qc_menu', JSON.stringify(INITIAL_MENU_ITEMS));
-    }
-
-    // Coupons
-    const localCoupons = localStorage.getItem('qc_coupons');
-    if (localCoupons) {
-      setCoupons(JSON.parse(localCoupons));
-    } else {
-      setCoupons(INITIAL_COUPONS);
-      localStorage.setItem('qc_coupons', JSON.stringify(INITIAL_COUPONS));
-    }
-
-    // Activities log
-    const localAct = localStorage.getItem('qc_activities');
-    const localActivitySeedVersion = localStorage.getItem('qc_activities_seed_version');
-    if (localAct && localActivitySeedVersion === ACTIVITY_SEED_VERSION) {
-      setActivities(JSON.parse(localAct));
-    } else {
-      setActivities(INITIAL_ACTIVITIES);
-      localStorage.setItem('qc_activities', JSON.stringify(INITIAL_ACTIVITIES));
-      localStorage.setItem('qc_activities_seed_version', ACTIVITY_SEED_VERSION);
-    }
-
-    // CRM Members
-    const localMem = localStorage.getItem('qc_members');
-    if (localMem) {
-      setMembers(JSON.parse(localMem));
-    } else {
-      setMembers(INITIAL_MEMBERS);
-      localStorage.setItem('qc_members', JSON.stringify(INITIAL_MEMBERS));
-    }
-
-    // Workforce staff
-    const localStaff = localStorage.getItem('qc_staff');
-    if (localStaff) {
-      setStaff(JSON.parse(localStaff));
-    } else {
-      setStaff(INITIAL_STAFF);
-      localStorage.setItem('qc_staff', JSON.stringify(INITIAL_STAFF));
-    }
-
-    // Promos
-    const localPromos = localStorage.getItem('qc_promotions');
-    const localPromotionSeedVersion = localStorage.getItem('qc_promotions_seed_version');
-    if (localPromos && localPromotionSeedVersion === PROMOTION_SEED_VERSION) {
-      setPromotions(JSON.parse(localPromos));
-    } else {
-      setPromotions(INITIAL_PROMOTIONS);
-      localStorage.setItem('qc_promotions', JSON.stringify(INITIAL_PROMOTIONS));
-      localStorage.setItem('qc_promotions_seed_version', PROMOTION_SEED_VERSION);
-    }
-
-    // Branch Prices
-    const localBP = localStorage.getItem('qc_branch_prices');
-    if (localBP) {
-      setBranchPrices(JSON.parse(localBP));
-    } else {
-      setBranchPrices([]);
-      localStorage.setItem('qc_branch_prices', JSON.stringify([]));
-    }
+  useEffect(() => {
+    resetDemoData();
+    // Demo mode intentionally resets from source mock data only once per page load.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  // Write-back updates to LocalStorage to sustain persistent edits
-  useEffect(() => {
-    if (orders.length > 0) {
-      localStorage.setItem('qc_orders', JSON.stringify(orders));
-      
-      // Multi-directional live synchronization with Payment Verification storage key
-      const localDemoOrd = localStorage.getItem('quick_coffee_demo_payment_orders_v2');
-      if (localDemoOrd) {
-        try {
-          const parsedDemo = JSON.parse(localDemoOrd) as Order[];
-          if (parsedDemo && Array.isArray(parsedDemo)) {
-            const updatedDemo = parsedDemo.map((demoO: Order) => {
-              const matchedParent = orders.find(o => o.id === demoO.id);
-              if (matchedParent) {
-                return {
-                  ...demoO,
-                  status: matchedParent.status,
-                  paymentStatus: matchedParent.paymentStatus,
-                  timeline: matchedParent.timeline,
-                  queueNo: matchedParent.queueNo || demoO.queueNo,
-                  branch: matchedParent.branch || demoO.branch,
-                };
-              }
-              return demoO;
-            });
-            localStorage.setItem('quick_coffee_demo_payment_orders_v2', JSON.stringify(updatedDemo));
-          }
-        } catch (e) {
-          console.warn(e);
-        }
-      }
-    }
-  }, [orders]);
-
-  useEffect(() => {
-    if (ingredients.length > 0) localStorage.setItem('qc_ingredients', JSON.stringify(ingredients));
-  }, [ingredients]);
-
-  useEffect(() => {
-    if (menuItems.length > 0) localStorage.setItem('qc_menu', JSON.stringify(menuItems));
-  }, [menuItems]);
-
-  useEffect(() => {
-    if (coupons.length > 0) localStorage.setItem('qc_coupons', JSON.stringify(coupons));
-  }, [coupons]);
-
-  useEffect(() => {
-    if (activities.length > 0) localStorage.setItem('qc_activities', JSON.stringify(activities));
-  }, [activities]);
-
-  useEffect(() => {
-    if (members.length > 0) localStorage.setItem('qc_members', JSON.stringify(members));
-  }, [members]);
-
-  useEffect(() => {
-    if (staff.length > 0) localStorage.setItem('qc_staff', JSON.stringify(staff));
-  }, [staff]);
-
-  useEffect(() => {
-    if (promotions.length > 0) localStorage.setItem('qc_promotions', JSON.stringify(promotions));
-  }, [promotions]);
-
-  useEffect(() => {
-    localStorage.setItem('qc_branch_prices', JSON.stringify(branchPrices));
-  }, [branchPrices]);
 
   // ─── Branch-specific queue number generator ──────────────────────────────────
   // Returns YYYY-MM-DD for today
@@ -736,6 +619,46 @@ export default function App() {
     setCurrentTab('Orders');
   };
 
+  const handleStockRoundConfirm = (round: 'open' | 'close', branch: string) => {
+    const branchName = branch as Branch;
+    const managerByBranch: Record<Exclude<Branch, 'All Branches'>, string> = {
+      'Central Plaza': 'central.manager',
+      'Siam Square': 'siam.manager',
+      'Mega Bangna': 'mega.manager',
+      'The Mall Korat': 'korat.manager',
+    };
+    const stamp = new Date().toLocaleString('en-GB', {
+      day: '2-digit', month: 'short', year: 'numeric',
+      hour: '2-digit', minute: '2-digit', hour12: false
+    });
+
+    setStockGateStatus(prev => prev?.branch === branch
+      ? {
+          ...prev,
+          openingConfirmed: round === 'open' ? true : prev.openingConfirmed,
+          closingConfirmed: round === 'close' ? true : prev.closingConfirmed,
+        }
+      : prev
+    );
+
+    const isOpen = round === 'open';
+    setActivities(prev => [{
+      id: `ACT-STOCK-${round.toUpperCase()}-${Date.now()}`,
+      text: isOpen
+        ? `Staff confirmed store opening for ${branch}.`
+        : `Staff closed store for ${branch}.`,
+      time: stamp,
+      type: 'inventory',
+      status: isOpen ? 'Ready' : 'Sent',
+      username: roleMode === 'Staff' && branch in managerByBranch ? managerByBranch[branch as Exclude<Branch, 'All Branches'>] : 'admin',
+      role: roleMode === 'Staff' ? 'Branch Manager' : 'Super Admin',
+      assignedBranch: branchName,
+      module: 'Daily Stock Check',
+      relatedRecordId: `${branch}-${round}-${stamp}`,
+      action: isOpen ? 'Staff confirmed store opening' : 'Staff closed store',
+    }, ...prev]);
+  };
+
   // Safe checks for rendering
   const activeBranch = roleMode === 'Staff' ? (staffAssignedBranch as Branch) : selectedBranch;
   const allowedTabs = roleMode === 'Staff' ? STAFF_ALLOWED_TABS : ADMIN_ALLOWED_TABS;
@@ -784,6 +707,7 @@ export default function App() {
           selectedBranch={selectedBranch}
           setSelectedBranch={setSelectedBranch}
           staffAssignedBranch={staffAssignedBranch}
+          branchStatuses={headerBranchStatuses}
           onOpenMobileSidebar={() => setMobileSidebarOpen(true)}
         />
 
@@ -819,6 +743,7 @@ export default function App() {
                   <p className="text-xs text-amber-800 mt-1 leading-relaxed">
                     Staff must complete and confirm the opening stock check before accessing Order Management.
                     {stockGateStatus ? ` Checked ${stockGateStatus.openingChecked} / ${stockGateStatus.total} required items.` : ''}
+                    {staffBranchMasterStatus !== 'Open' ? ` Current branch status: ${staffBranchMasterStatus}.` : ''}
                   </p>
                   {stockGateStatus && stockGateStatus.missingOpening.length > 0 && (
                     <div className="mt-3">
@@ -832,9 +757,9 @@ export default function App() {
                   )}
                   <button
                     onClick={() => setCurrentTab('Stock Management')}
-                    className="mt-4 px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg"
+                    className="mt-4 px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg"
                   >
-                    Go to Daily Stock Check
+                    Go to Stock Check
                   </button>
                 </div>
               </div>
@@ -858,27 +783,32 @@ export default function App() {
           )}
 
           {currentTab === 'Payment Verification' && (
-            <PaymentVerificationView 
-              orders={orders}
-              updateOrderStatus={updateOrderStatus}
-              selectedOrderId={selectedOrderId}
-              setSelectedOrderId={setSelectedOrderId}
-              roleMode={roleMode}
-            />
+            <div key={`payment-${demoResetVersion}`} className="contents">
+              <PaymentVerificationView 
+                orders={orders}
+                updateOrderStatus={updateOrderStatus}
+                selectedOrderId={selectedOrderId}
+                setSelectedOrderId={setSelectedOrderId}
+                roleMode={roleMode}
+              />
+            </div>
           )}
 
           {currentTab === 'Stock Management' && (
-            <StockManagementView 
-              ingredients={ingredients}
-              setIngredients={setIngredients}
-              selectedBranch={selectedBranch}
-              setSelectedBranch={setSelectedBranch}
-              roleMode={roleMode}
-              staffAssignedBranch={staffAssignedBranch}
-              isLoading={inventoryLoading}
-              error={inventoryError}
+            <div key={`stock-${demoResetVersion}`} className="contents">
+              <StockManagementView 
+                ingredients={ingredients}
+                setIngredients={setIngredients}
+                selectedBranch={selectedBranch}
+                setSelectedBranch={setSelectedBranch}
+                roleMode={roleMode}
+                staffAssignedBranch={staffAssignedBranch}
+                isLoading={inventoryLoading}
+                error={inventoryError}
               onGateChange={setStockGateStatus}
+              onRoundConfirm={handleStockRoundConfirm}
             />
+            </div>
           )}
 
           {currentTab === 'Menu & Pricing' && (
@@ -912,19 +842,25 @@ export default function App() {
           )}
 
           {currentTab === 'Branches' && (
-            <BranchManagementView
-              orders={orders}
-              roleMode={roleMode}
-              staffAssignedBranch={staffAssignedBranch}
-              setActivities={setActivities}
-            />
+            <div key={`branches-${demoResetVersion}`} className="contents">
+              <BranchManagementView
+                orders={orders}
+                roleMode={roleMode}
+                staffAssignedBranch={staffAssignedBranch}
+                branchStatuses={branchStatuses}
+                setBranchStatuses={setBranchStatuses}
+                setActivities={setActivities}
+              />
+            </div>
           )}
 
           {currentTab === 'Warehouse' && (
-            <CentralWarehouseView
-              roleMode={roleMode}
-              staffAssignedBranch={staffAssignedBranch}
-            />
+            <div key={`warehouse-${demoResetVersion}`} className="contents">
+              <CentralWarehouseView
+                roleMode={roleMode}
+                staffAssignedBranch={staffAssignedBranch}
+              />
+            </div>
           )}
 
           {/* Fallback auxiliary screens container */}

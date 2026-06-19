@@ -231,8 +231,8 @@ export default function DashboardView({
       change: '+18.2%',
       isPositive: true,
       subtitle: language === 'TH' ? 'เทียบกับเมื่อวาน' : 'vs yesterday',
-      icon: <ShoppingBag size={18} className="text-[#8B6B4F]" />,
-      bgColor: 'bg-[#FDF1E6]/40 border-amber-100'
+      icon: <ShoppingBag size={18} className="text-[#181d26]" />,
+      bgColor: 'bg-[#f8fafc]/40 border-amber-100'
     },
     {
       id: 'stat-pending-slip',
@@ -310,7 +310,7 @@ export default function DashboardView({
       change: '+12.1%',
       isPositive: true,
       subtitle: language === 'TH' ? 'ออเดอร์ที่สร้างวันนี้ · ทุกสาขา' : 'orders created · all branches',
-      icon: <ShoppingBag size={18} className="text-[#8B6B4F]" />,
+      icon: <ShoppingBag size={18} className="text-[#181d26]" />,
       bgColor: 'bg-blue-50/30 border-blue-100'
     },
     {
@@ -722,13 +722,13 @@ export default function DashboardView({
   const renderKpiCard = (card: any) => (
     <div
       id={`dashboard-card-${card.id}`}
-      className={`p-3.5 rounded-xl border ${card.bgColor} bg-white flex flex-col justify-between shadow-xs hover:border-[#8B6B4F] hover:shadow-sm transition-all duration-200`}
+      className={`p-3.5 rounded-xl border ${card.bgColor} bg-white flex flex-col justify-between shadow-xs hover:border-[#181d26] hover:shadow-sm transition-all duration-200`}
     >
       <div className="flex items-center justify-between gap-1">
         <span className="font-sans text-[10px] font-bold text-coffee-muted tracking-tight text-ellipsis overflow-hidden whitespace-nowrap block" title={card.title}>
           {card.title}
         </span>
-        <div id={`icon-${card.id}`} className="p-1 rounded bg-[#FDF1E6]/30 border border-coffee-border/30 shrink-0">
+        <div id={`icon-${card.id}`} className="p-1 rounded bg-[#f8fafc]/30 border border-coffee-border/30 shrink-0">
           {card.icon}
         </div>
       </div>
@@ -736,7 +736,7 @@ export default function DashboardView({
         <h3 className="font-sans font-black text-lg text-coffee tracking-tight">{card.value}</h3>
         <span className="text-[9.5px] font-mono leading-none block text-zinc-400 mt-0.5">
           {card.status ? (
-            <span className={card.isAlert ? 'text-red-500 font-bold' : 'text-[#8B6B4F] font-bold'}>{card.status}</span>
+            <span className={card.isAlert ? 'text-red-500 font-bold' : 'text-[#181d26] font-bold'}>{card.status}</span>
           ) : (
             <span className="flex items-center gap-0.5">
               <span className={card.isPositive ? 'text-emerald-600 font-bold' : 'text-red-500 font-bold'}>{card.change}</span>
@@ -754,7 +754,7 @@ export default function DashboardView({
       {/* ── PRIMARY KPIs (4 cards) — always TODAY's real-time operational data, unaffected by the analytics filters ── */}
       <div className="space-y-1.5">
         <div className="flex items-baseline gap-2 flex-wrap">
-          <h4 className="font-sans font-bold text-[10px] text-[#8B6B4F] uppercase tracking-wider">
+          <h4 className="font-sans font-bold text-[10px] text-[#181d26] uppercase tracking-wider">
             {language === 'TH' ? 'ดัชนีชี้วัดหลัก — วันนี้' : 'Primary KPIs — Today'}
           </h4>
           <span className="text-[9px] font-mono text-zinc-400">
@@ -776,7 +776,7 @@ export default function DashboardView({
       {/* ── SALES ANALYTICS ── */}
       <div className="p-5 bg-white border border-coffee-border rounded-2xl shadow-xs space-y-5">
         {/* Header + filters */}
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="flex flex-col lg:flex-row flex-wrap lg:items-center lg:justify-between gap-3">
           <div className="flex items-center gap-2">
             <TrendingUp size={16} className="text-emerald-700 shrink-0" />
             <div>
@@ -814,7 +814,7 @@ export default function DashboardView({
                 id="sales-branch-filter"
                 value={salesBranch}
                 onChange={e => setSalesBranch(e.target.value)}
-                className="text-[11px] font-semibold py-1.5 px-2.5 bg-stone-50 border border-coffee-border rounded-lg text-zinc-600 focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+                className="text-[11px] font-semibold py-1.5 px-2.5 bg-stone-50 border border-coffee-border rounded-lg text-zinc-600 focus:outline-none focus:border-[#181d26] cursor-pointer"
               >
                 <option value="All Branches">{language === 'TH' ? 'ทุกสาขา' : 'All Branches'}</option>
                 <option value="Central Plaza">Central Plaza</option>
@@ -835,12 +835,12 @@ export default function DashboardView({
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-5">
 
           {/* CHART (70%) — revenue-only modern bar chart (compact height) */}
-          <div className="lg:col-span-7 order-2 lg:order-1 flex flex-col rounded-2xl bg-[#F8F6F2] border border-[#EADBC8] p-3">
+          <div className="lg:col-span-7 order-2 lg:order-1 flex flex-col rounded-2xl bg-[#f8fafc] border border-[#e0e2e6] p-3">
             <div className="flex items-center justify-between mb-1">
-              <span className="text-[9.5px] uppercase font-mono font-bold text-[#A67C52]">
+              <span className="text-[9.5px] uppercase font-mono font-bold text-[#41454d]">
                 {language === 'TH' ? 'แนวโน้มรายได้' : 'Revenue Trend'}
               </span>
-              <span className="text-[9.5px] font-mono text-[#A67C52]/70">
+              <span className="text-[9.5px] font-mono text-[#41454d]/70">
                 {effectiveSalesBranch === 'All Branches' ? (language === 'TH' ? 'ทุกสาขา' : 'All Branches') : effectiveSalesBranch}
               </span>
             </div>
@@ -880,24 +880,24 @@ export default function DashboardView({
                 <svg viewBox={`0 0 ${W} ${H}`} className="w-full" role="img">
                   <defs>
                     <linearGradient id="barGrad" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#D9B38C" />
-                      <stop offset="100%" stopColor="#A67C52" />
+                      <stop offset="0%" stopColor="#9297a0" />
+                      <stop offset="100%" stopColor="#41454d" />
                     </linearGradient>
                     <linearGradient id="barGradActive" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#A67C52" />
-                      <stop offset="100%" stopColor="#8B5E3C" />
+                      <stop offset="0%" stopColor="#41454d" />
+                      <stop offset="100%" stopColor="#181d26" />
                     </linearGradient>
                   </defs>
 
                   {/* Gridlines — muted ~50% */}
                   {yTicks.map(v => (
-                    <line key={`grid-${v}`} x1={x0} y1={revY(v)} x2={x1} y2={revY(v)} stroke="#EADBC8" strokeWidth={1} strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
+                    <line key={`grid-${v}`} x1={x0} y1={revY(v)} x2={x1} y2={revY(v)} stroke="#e0e2e6" strokeWidth={1} strokeOpacity={0.5} vectorEffect="non-scaling-stroke" />
                   ))}
                   {/* Left axis (revenue) labels */}
                   {yTicks.map(v => (
-                    <text key={`yl-${v}`} x={x0 - 8} y={revY(v) + 3} textAnchor="end" fontSize={11} fill="#A67C52" fontFamily="monospace">{fmtAxis(v)}</text>
+                    <text key={`yl-${v}`} x={x0 - 8} y={revY(v) + 3} textAnchor="end" fontSize={11} fill="#41454d" fontFamily="monospace">{fmtAxis(v)}</text>
                   ))}
-                  <text x={x0 - 8} y={y0 - 8} textAnchor="start" fontSize={9.5} fill="#8B5E3C" fontWeight="bold" fontFamily="monospace">{language === 'TH' ? 'บาท' : 'THB'}</text>
+                  <text x={x0 - 8} y={y0 - 8} textAnchor="start" fontSize={9.5} fill="#181d26" fontWeight="bold" fontFamily="monospace">{language === 'TH' ? 'บาท' : 'THB'}</text>
 
                   {/* Revenue bars — gradient, rounded top, latest highlighted darker */}
                   {pts.map((p, i) => {
@@ -916,7 +916,7 @@ export default function DashboardView({
 
                   {/* X-axis labels */}
                   {pts.map((p, i) => (
-                    <text key={`xl-${i}`} x={cx(i)} y={y1 + 20} textAnchor="middle" fontSize={11} fill={hovered === i ? '#8B5E3C' : '#A67C52'} fontWeight={hovered === i ? 'bold' : 'normal'} fontFamily="monospace">{p.label}</text>
+                    <text key={`xl-${i}`} x={cx(i)} y={y1 + 20} textAnchor="middle" fontSize={11} fill={hovered === i ? '#181d26' : '#41454d'} fontWeight={hovered === i ? 'bold' : 'normal'} fontFamily="monospace">{p.label}</text>
                   ))}
 
                   {/* Hover capture columns */}
@@ -937,12 +937,12 @@ export default function DashboardView({
                   {/* Tooltip — only on hover */}
                   {tip && (
                     <g pointerEvents="none">
-                      <rect x={tip.tx} y={tip.ty} width={TIPW} height={TIPH} rx={9} fill="#3A2A1E" />
-                      <text x={tip.tx + 13} y={tip.ty + 20} fontSize={9.5} fill="#D9B38C" fontFamily="sans-serif">{tip.tp.fullLabel}</text>
-                      <text x={tip.tx + 13} y={tip.ty + 41} fontSize={9.5} fill="#EADBC8" fontFamily="sans-serif">{language === 'TH' ? 'รายได้' : 'Revenue'}</text>
+                      <rect x={tip.tx} y={tip.ty} width={TIPW} height={TIPH} rx={9} fill="#0d1218" />
+                      <text x={tip.tx + 13} y={tip.ty + 20} fontSize={9.5} fill="#9297a0" fontFamily="sans-serif">{tip.tp.fullLabel}</text>
+                      <text x={tip.tx + 13} y={tip.ty + 41} fontSize={9.5} fill="#e0e2e6" fontFamily="sans-serif">{language === 'TH' ? 'รายได้' : 'Revenue'}</text>
                       <text x={tip.tx + TIPW - 13} y={tip.ty + 42} textAnchor="end" fontSize={12} fill="#FFFFFF" fontWeight="bold" fontFamily="monospace">{formatCurrency(tip.tp.revenue)}</text>
-                      <text x={tip.tx + 13} y={tip.ty + 58} fontSize={9} fill="#B8A48E" fontFamily="sans-serif">{language === 'TH' ? 'จำนวนออเดอร์' : 'Orders'}</text>
-                      <text x={tip.tx + TIPW - 13} y={tip.ty + 58} textAnchor="end" fontSize={9.5} fill="#D9B38C" fontFamily="monospace">{tip.tp.orders.toLocaleString()}</text>
+                      <text x={tip.tx + 13} y={tip.ty + 58} fontSize={9} fill="#41454d" fontFamily="sans-serif">{language === 'TH' ? 'จำนวนออเดอร์' : 'Orders'}</text>
+                      <text x={tip.tx + TIPW - 13} y={tip.ty + 58} textAnchor="end" fontSize={9.5} fill="#9297a0" fontFamily="monospace">{tip.tp.orders.toLocaleString()}</text>
                     </g>
                   )}
                 </svg>
@@ -951,8 +951,8 @@ export default function DashboardView({
 
             {/* Legend — Revenue only, snug under the chart */}
             <div className="flex items-center justify-center gap-1.5 mt-1">
-              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'linear-gradient(180deg,#D9B38C,#A67C52)' }} />
-              <span className="text-[10px] font-mono text-[#8B5E3C]">{language === 'TH' ? 'รายได้ (บาท)' : 'Revenue (THB)'}</span>
+              <span className="w-3 h-3 rounded-sm inline-block" style={{ background: 'linear-gradient(180deg,#9297a0,#41454d)' }} />
+              <span className="text-[10px] font-mono text-[#181d26]">{language === 'TH' ? 'รายได้ (บาท)' : 'Revenue (THB)'}</span>
             </div>
           </div>
 
@@ -967,30 +967,30 @@ export default function DashboardView({
                 {
                   key: 'rev', label: language === 'TH' ? 'รายได้รวม' : 'Total Revenue',
                   value: formatCurrency(analytics.summary.revenue),
-                  icon: <DollarSign size={15} className="text-[#8B5E3C]" />,
-                  bg: 'bg-[#EADBC8]/60 border-[#D9B38C]', valueCls: 'text-3xl text-[#5E3D26]',
+                  icon: <DollarSign size={15} className="text-[#181d26]" />,
+                  bg: 'bg-[#e0e2e6]/60 border-[#9297a0]', valueCls: 'text-3xl text-[#0d1218]',
                 },
                 {
                   key: 'ord', label: language === 'TH' ? 'จำนวนออเดอร์' : 'Total Orders',
                   value: analytics.summary.orders.toLocaleString(),
-                  icon: <ShoppingBag size={15} className="text-[#A67C52]" />,
-                  bg: 'bg-[#F8F6F2] border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
+                  icon: <ShoppingBag size={15} className="text-[#41454d]" />,
+                  bg: 'bg-[#f8fafc] border-[#e0e2e6]', valueCls: 'text-2xl text-[#181d26]',
                 },
                 {
                   key: 'aov', label: language === 'TH' ? 'ยอดขายเฉลี่ยต่อบิล' : 'Average Order Value',
                   value: formatCurrency(analytics.summary.avgValue),
-                  icon: <TrendingUp size={15} className="text-[#A67C52]" />,
-                  bg: 'bg-white border-[#EADBC8]', valueCls: 'text-2xl text-[#8B5E3C]',
+                  icon: <TrendingUp size={15} className="text-[#41454d]" />,
+                  bg: 'bg-white border-[#e0e2e6]', valueCls: 'text-2xl text-[#181d26]',
                 },
               ];
               return cards.map(c => (
                 <div key={c.key} className={`flex-1 p-4 border rounded-xl flex flex-col justify-center ${c.bg} shadow-xs hover:shadow-md hover:-translate-y-0.5 transition-all duration-200`}>
                   <div className="flex items-center gap-1.5 mb-1.5">
-                    <span className="p-1 rounded-md bg-white/70 border border-[#EADBC8]">{c.icon}</span>
-                    <span className="text-[10px] uppercase font-bold text-[#A67C52] font-mono tracking-tight">{c.label}</span>
+                    <span className="p-1 rounded-md bg-white/70 border border-[#e0e2e6]">{c.icon}</span>
+                    <span className="text-[10px] uppercase font-bold text-[#41454d] font-mono tracking-tight">{c.label}</span>
                   </div>
                   <strong className={`font-black font-mono leading-none ${c.valueCls}`}>{c.value}</strong>
-                  <span className="text-[8.5px] text-[#A67C52]/70 font-mono mt-1.5">{scopeLabel}</span>
+                  <span className="text-[8.5px] text-[#41454d]/70 font-mono mt-1.5">{scopeLabel}</span>
                 </div>
               ));
             })()}
@@ -1118,11 +1118,11 @@ export default function DashboardView({
                     return (
                       <div key={c.code} className="space-y-1.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="font-mono font-bold bg-[#FDF1E6] text-coffee px-2 py-0.5 rounded text-[10px] truncate">{c.code}</span>
-                          <span className="text-[11px] text-[#8B6B4F] font-mono font-bold shrink-0 tabular-nums">{language === 'TH' ? `${c.uses} ครั้ง` : `${c.uses} uses`}</span>
+                          <span className="font-mono font-bold bg-[#f8fafc] text-coffee px-2 py-0.5 rounded text-[10px] truncate">{c.code}</span>
+                          <span className="text-[11px] text-[#181d26] font-mono font-bold shrink-0 tabular-nums">{language === 'TH' ? `${c.uses} ครั้ง` : `${c.uses} uses`}</span>
                         </div>
                         <div className="w-full bg-stone-100 h-2 rounded-full overflow-hidden">
-                          <div className="h-full rounded-full bg-[#8B6B4F] transition-all duration-500" style={{ width: `${percent}%` }} />
+                          <div className="h-full rounded-full bg-[#181d26] transition-all duration-500" style={{ width: `${percent}%` }} />
                         </div>
                       </div>
                     );
@@ -1156,7 +1156,7 @@ export default function DashboardView({
                   value={promoForm.title}
                   onChange={e => setPromoForm(prev => ({ ...prev, title: e.target.value }))}
                   placeholder="e.g. Summer Special"
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26]"
                   required
                 />
               </div>
@@ -1167,7 +1167,7 @@ export default function DashboardView({
                   value={promoForm.subtitle}
                   onChange={e => setPromoForm(prev => ({ ...prev, subtitle: e.target.value }))}
                   placeholder="e.g. Get 20% discount on every Caramel Macchiato purchase this week."
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F] h-20"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26] h-20"
                   required
                 />
               </div>
@@ -1177,7 +1177,7 @@ export default function DashboardView({
                 <select 
                   value={promoForm.targetBranch}
                   onChange={e => setPromoForm(prev => ({ ...prev, targetBranch: e.target.value as Branch }))}
-                  className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                  className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#181d26]"
                 >
                   <option value="Central Plaza">Central Plaza</option>
                   <option value="Siam Square">Siam Square</option>
@@ -1196,7 +1196,7 @@ export default function DashboardView({
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs"
+                  className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs"
                 >
                   Confirm Broadcast
                 </button>
@@ -1225,7 +1225,7 @@ export default function DashboardView({
                   value={couponForm.code}
                   onChange={e => setCouponForm(prev => ({ ...prev, code: e.target.value }))}
                   placeholder="e.g. SAVE30"
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-mono"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26] font-mono"
                   required
                 />
               </div>
@@ -1236,7 +1236,7 @@ export default function DashboardView({
                   <select 
                     value={couponForm.discountType}
                     onChange={e => setCouponForm(prev => ({ ...prev, discountType: e.target.value as 'fixed' | 'percentage' }))}
-                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#181d26]"
                   >
                     <option value="fixed">Fixed (฿ THB)</option>
                     <option value="percentage">Percentage (%)</option>
@@ -1249,7 +1249,7 @@ export default function DashboardView({
                     type="number" 
                     value={couponForm.discountValue}
                     onChange={e => setCouponForm(prev => ({ ...prev, discountValue: Number(e.target.value) }))}
-                    className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-mono"
+                    className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26] font-mono"
                     required
                   />
                 </div>
@@ -1261,7 +1261,7 @@ export default function DashboardView({
                   type="number" 
                   value={couponForm.limitGlobal}
                   onChange={e => setCouponForm(prev => ({ ...prev, limitGlobal: Number(e.target.value) }))}
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-mono"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26] font-mono"
                   required
                 />
               </div>
@@ -1276,7 +1276,7 @@ export default function DashboardView({
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs"
+                  className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs"
                 >
                   Create Coupon
                 </button>
@@ -1305,7 +1305,7 @@ export default function DashboardView({
                   placeholder="Somsak Kaewkaon"
                   value={staffForm.name}
                   onChange={e => setStaffForm(prev => ({ ...prev, name: e.target.value }))}
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26]"
                   required
                 />
               </div>
@@ -1317,7 +1317,7 @@ export default function DashboardView({
                   placeholder="somsak@quickcoffee.com"
                   value={staffForm.email}
                   onChange={e => setStaffForm(prev => ({ ...prev, email: e.target.value }))}
-                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                  className="w-full text-xs p-2.5 border rounded-lg focus:outline-none focus:border-[#181d26]"
                   required
                 />
               </div>
@@ -1328,7 +1328,7 @@ export default function DashboardView({
                   <select 
                     value={staffForm.role}
                     onChange={e => setStaffForm(prev => ({ ...prev, role: e.target.value as any }))}
-                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#181d26]"
                   >
                     <option value="Super Admin">Super Admin</option>
                     <option value="Branch Manager">Branch Manager</option>
@@ -1341,7 +1341,7 @@ export default function DashboardView({
                   <select 
                     value={staffForm.branch}
                     onChange={e => setStaffForm(prev => ({ ...prev, branch: e.target.value as any }))}
-                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                    className="w-full text-xs p-2.5 border bg-white rounded-lg focus:outline-none focus:border-[#181d26]"
                   >
                     <option value="Central Plaza">Central Plaza</option>
                     <option value="Siam Square">Siam Square</option>
@@ -1361,7 +1361,7 @@ export default function DashboardView({
                 </button>
                 <button 
                   type="submit" 
-                  className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs"
+                  className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs"
                 >
                   Register Staff
                 </button>

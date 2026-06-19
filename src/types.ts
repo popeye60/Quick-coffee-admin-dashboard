@@ -4,6 +4,7 @@
  */
 
 export type Branch = 'Central Plaza' | 'Siam Square' | 'Mega Bangna' | 'The Mall Korat' | 'All Branches';
+export type BranchStatus = 'Open' | 'Temporarily Closed' | 'Closed';
 
 export type OrderStatus = 'Pending Payment' | 'Paid' | 'Preparing' | 'Ready For Pickup' | 'Queue Called' | 'Completed' | 'Cancelled' | 'Auto Cancelled' | 'Cancelled by Staff';
 
@@ -162,6 +163,9 @@ export interface Activity {
   username?: string;
   role?: 'Super Admin' | 'Branch Manager' | 'System';
   action?: string;
+  module?: string;
+  relatedRecordId?: string;
+  assignedBranch?: Branch | 'System';
 }
 
 export interface Member {
@@ -195,7 +199,7 @@ export interface Promotion {
   shortDescription?: string;
   fullDescription?: string;
   terms?: string;
-  status: 'Active' | 'Inactive' | 'Draft' | 'Published' | 'Scheduled' | 'Expired';
+  status: 'Active' | 'Inactive' | 'Draft' | 'Published' | 'Scheduled' | 'Scheduled Notification' | 'Expired';
   startDate: string;
   endDate: string;
   clicks: number;
@@ -210,10 +214,14 @@ export interface Promotion {
   notificationScheduleType?: 'Send Immediately' | 'Schedule for Later';
   notificationDate?: string;
   notificationTime?: string;
+  notificationTimeZone?: string;
   notificationTargetAudience?: 'All Users' | 'All Branches' | 'Selected Branches' | 'Customers of Selected Branches';
   notificationTargetBranches?: Exclude<Branch, 'All Branches'>[];
-  notificationStatus?: 'Draft' | 'Scheduled' | 'Sent' | 'Failed';
+  notificationStatus?: 'Draft' | 'Scheduled' | 'Sent' | 'Failed' | 'Cancelled';
+  notificationScheduledAt?: string;
   notificationSentAt?: string;
+  notificationCancelledAt?: string;
+  notificationCancelReason?: 'unpublish' | 'delete' | 'manual';
   bannerImage?: string;
   detailImage?: string;
   thumbnailImage?: string;

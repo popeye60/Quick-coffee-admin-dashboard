@@ -93,23 +93,23 @@ function BranchesView() {
 
   return (
     <div className="p-6 space-y-5 font-sans animate-fade-in">
-      <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#E6DFD9] shadow-xs">
-        <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'วิเคราะห์ข้อมูลขีดทำงานและการบริการสาขา' : 'Branch Performance Analytics'}</h3>
+      <div className="bg-[#FFFFFF] p-4 rounded-xl border border-[#dddddd] shadow-xs">
+        <h3 className="font-bold text-sm text-[#181d26]">{language === 'TH' ? 'วิเคราะห์ข้อมูลขีดทำงานและการบริการสาขา' : 'Branch Performance Analytics'}</h3>
         <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'ประมวลค่าสตาฟพนักงาน ยอดจัดส่งรายสาขา และขอบเขตเวลาทำงานหน้าร้านเครื่องดื่ม' : 'Diagnose sales, physical staff roster caps, and current operating state thresholds'}</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {branchesData.map(b => (
-          <div key={b.name} className="p-4 bg-white border border-[#E6DFD9] rounded-xl shadow-xs hover:border-amber-400/50 transition-all space-y-4">
+          <div key={b.name} className="p-4 bg-white border border-[#dddddd] rounded-xl shadow-xs hover:border-amber-400/50 transition-all space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
-                <div className="w-9 h-9 rounded-lg bg-amber-50 text-[#8B6B4F] flex items-center justify-center font-bold font-sans">
+                <div className="w-9 h-9 rounded-lg bg-amber-50 text-[#181d26] flex items-center justify-center font-bold font-sans">
                   🏬
                 </div>
                 <div>
                   <h4 className="font-extrabold text-sm text-zinc-900 leading-snug">{b.name}</h4>
                   <span className="text-[10px] text-zinc-400 flex items-center gap-1 font-medium">
-                    <Clock size={11} className="text-[#8B6B4F]" /> {language === 'TH' ? 'ชั่วโมงทำการ:' : 'Hours:'} {b.hours}
+                    <Clock size={11} className="text-[#181d26]" /> {language === 'TH' ? 'ชั่วโมงทำการ:' : 'Hours:'} {b.hours}
                   </span>
                 </div>
               </div>
@@ -130,13 +130,13 @@ function BranchesView() {
               </div>
               <div>
                 <span className="text-[9.5px] text-zinc-400 block font-sans">{language === 'TH' ? 'คิวที่กำลังจัดทำ' : 'Active Queues'}</span>
-                <strong className="text-[#8B6B4F] text-sm font-bold">{b.activeQueues}</strong>
+                <strong className="text-[#181d26] text-sm font-bold">{b.activeQueues}</strong>
               </div>
             </div>
 
             <div className="flex justify-between items-center text-xs">
               <span className="text-zinc-500 font-medium">{language === 'TH' ? 'ผู้จัดการสาขาหลัก:' : 'General Manager:'} <strong className="text-zinc-700 font-semibold">{b.manager}</strong></span>
-              <button className="text-[11px] font-bold text-[#8B6B4F] hover:underline flex items-center gap-0.5">
+              <button className="text-[11px] font-bold text-[#181d26] hover:underline flex items-center gap-0.5">
                 {language === 'TH' ? 'วินิจฉัยเชิงลึก ↗' : 'Full diagnostics ↗'}
               </button>
             </div>
@@ -151,7 +151,7 @@ function BranchesView() {
 // 2. PROMOTIONS VIEW (ADVERTISING BOARD / CAMPAIGNS)
 // ----------------------------------------------------
 const BRANCH_OPTIONS: Exclude<Branch, 'All Branches'>[] = ['Central Plaza', 'Siam Square', 'Mega Bangna', 'The Mall Korat'];
-type PromotionStatus = Extract<Promotion['status'], 'Draft' | 'Published' | 'Scheduled' | 'Expired'>;
+type PromotionStatus = Extract<Promotion['status'], 'Draft' | 'Published' | 'Scheduled Notification' | 'Expired'>;
 type ImageField = 'bannerImage' | 'detailImage' | 'thumbnailImage';
 
 const blankPromotion = (): Promotion => ({
@@ -177,9 +177,11 @@ const blankPromotion = (): Promotion => ({
   notificationScheduleType: 'Send Immediately',
   notificationDate: '',
   notificationTime: '',
+  notificationTimeZone: 'Asia/Bangkok',
   notificationTargetAudience: 'All Users',
   notificationTargetBranches: [],
   notificationStatus: 'Draft',
+  notificationScheduledAt: '',
   bannerImage: '',
   detailImage: '',
   thumbnailImage: '',
@@ -192,7 +194,7 @@ const normalizePromotion = (p: Promotion): Promotion => ({
   shortDescription: p.shortDescription ?? p.subtitle ?? '',
   fullDescription: p.fullDescription ?? p.subtitle ?? '',
   terms: p.terms ?? '',
-  status: p.status === 'Active' ? 'Published' : p.status === 'Inactive' ? 'Draft' : p.status,
+  status: p.status === 'Active' ? 'Published' : p.status === 'Inactive' ? 'Draft' : p.status === 'Scheduled' ? 'Scheduled Notification' : p.status,
   targetBranches: p.targetBranches ?? (p.targetBranch === 'All Branches' ? [] : [p.targetBranch]),
   showTrending: p.showTrending ?? true,
   showAllPromotions: p.showAllPromotions ?? true,
@@ -203,9 +205,11 @@ const normalizePromotion = (p: Promotion): Promotion => ({
   notificationScheduleType: p.notificationScheduleType ?? 'Send Immediately',
   notificationDate: p.notificationDate ?? '',
   notificationTime: p.notificationTime ?? '',
+  notificationTimeZone: p.notificationTimeZone ?? 'Asia/Bangkok',
   notificationTargetAudience: p.notificationTargetAudience ?? 'All Users',
   notificationTargetBranches: p.notificationTargetBranches ?? [],
   notificationStatus: p.notificationStatus ?? (p.sendPush ? 'Draft' : undefined),
+  notificationScheduledAt: p.notificationScheduledAt ?? '',
   bannerImage: p.bannerImage ?? '',
   detailImage: p.detailImage ?? '',
   thumbnailImage: p.thumbnailImage ?? '',
@@ -233,16 +237,26 @@ function PromotionsView({
   const normalizedPromotions = promotions.map(normalizePromotion);
 
   const notificationDateTime = (p: Promotion) => p.notificationDate && p.notificationTime ? new Date(`${p.notificationDate}T${p.notificationTime}`) : null;
+  const notificationScheduledAtISO = (p: Promotion) => {
+    const dt = notificationDateTime(p);
+    return dt ? dt.toISOString() : '';
+  };
   const formatSchedule = (p: Promotion) => {
     const dt = notificationDateTime(p);
     if (!dt) return t('ยังไม่ได้ตั้งเวลา', 'Not scheduled');
-    return `${p.notificationDate} ${p.notificationTime}`;
+    return `${p.notificationDate} ${p.notificationTime}${p.notificationTimeZone ? ` (${p.notificationTimeZone})` : ''}`;
   };
+  const scheduledAuditTime = (p: Promotion) => `${p.notificationDate || 'YYYY-MM-DD'} ${p.notificationTime || 'HH:mm'}`;
   const logNotification = (action: string, promo: Promotion, status: NonNullable<Promotion['notificationStatus']>) => {
     const when = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const text = action === 'Scheduled Promotion Notification'
+      ? `Scheduled Promotion Notification - ${promo.title || 'Untitled promotion'} - ${scheduledAuditTime(promo)}`
+      : action === 'Cancelled Scheduled Promotion Notification'
+        ? `Cancelled Scheduled Promotion Notification - ${promo.title || 'Untitled promotion'} - ${scheduledAuditTime(promo)}`
+        : `${action} — Promotion: "${promo.title || 'Untitled promotion'}" — Notification Status: ${status} — User: Admin User — Date/Time: ${when}`;
     setActivities(prev => [{
       id: `ACT-NOTIF-${Date.now()}`,
-      text: `${action} — Promotion: "${promo.title || 'Untitled promotion'}" — Notification Status: ${status} — User: Admin User — Date/Time: ${when}`,
+      text,
       time: when,
       type: 'promotion',
       status: status === 'Failed' ? 'Alert' : 'Sent',
@@ -250,6 +264,19 @@ function PromotionsView({
       role: 'Super Admin',
       action,
     }, ...prev]);
+  };
+  const cancelScheduledNotification = (promo: Promotion, reason: 'unpublish' | 'delete' | 'manual') => {
+    const rec = normalizePromotion(promo);
+    if (rec.sendPush && rec.notificationStatus === 'Scheduled') {
+      logNotification('Cancelled Scheduled Promotion Notification', rec, 'Cancelled');
+      return {
+        ...rec,
+        notificationStatus: 'Cancelled' as const,
+        notificationCancelledAt: new Date().toISOString(),
+        notificationCancelReason: reason,
+      };
+    }
+    return rec;
   };
 
   const logPromotionDelete = (promo: Promotion) => {
@@ -285,7 +312,7 @@ function PromotionsView({
         const scheduledAt = notificationDateTime(rec);
         if (rec.sendPush && rec.notificationStatus === 'Scheduled' && scheduledAt && scheduledAt.getTime() <= Date.now()) {
           due.push({ ...rec, notificationStatus: 'Sent', notificationSentAt: new Date().toISOString() });
-          return { ...rec, notificationStatus: 'Sent', notificationSentAt: new Date().toISOString() };
+          return { ...rec, status: 'Published', notificationStatus: 'Sent', notificationSentAt: new Date().toISOString() };
         }
         return p;
       }));
@@ -298,17 +325,17 @@ function PromotionsView({
   }, [setPromotions]);
 
   const statusStyle = (status: Promotion['status']) => {
-    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status;
+    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status === 'Scheduled' ? 'Scheduled Notification' : status;
     return ({
       Draft: 'bg-zinc-100 text-zinc-600 border-zinc-200',
       Published: 'bg-emerald-50 text-emerald-700 border-emerald-200',
-      Scheduled: 'bg-sky-50 text-sky-700 border-sky-200',
+      'Scheduled Notification': 'bg-sky-50 text-sky-700 border-sky-200',
       Expired: 'bg-orange-50 text-orange-700 border-orange-200',
     } as Record<PromotionStatus, string>)[normalized as PromotionStatus];
   };
 
   const statusLabel = (status: Promotion['status']) => {
-    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status;
+    const normalized = status === 'Active' ? 'Published' : status === 'Inactive' ? 'Draft' : status === 'Scheduled' ? 'Scheduled Notification' : status;
     return normalized;
   };
 
@@ -356,6 +383,9 @@ function PromotionsView({
     const notificationAction = nextStatus === 'Published' && editing.sendPush
       ? editing.notificationScheduleType === 'Schedule for Later' ? 'schedule' : 'send-now'
       : 'none';
+    const resolvedStatus: Promotion['status'] =
+      notificationAction === 'schedule' ? 'Scheduled Notification'
+      : nextStatus || editing.status;
     const nextNotificationStatus =
       notificationAction === 'send-now' ? 'Sent'
       : notificationAction === 'schedule' ? 'Scheduled'
@@ -364,10 +394,11 @@ function PromotionsView({
     const rec = normalizePromotion({
       ...editing,
       subtitle: editing.shortDescription || editing.subtitle,
-      status: nextStatus || editing.status,
+      status: resolvedStatus,
       sendPush: editing.sendPush,
       notificationScheduleType: notificationAction === 'send-now' ? 'Send Immediately' : notificationAction === 'schedule' ? 'Schedule for Later' : editing.notificationScheduleType,
       notificationStatus: nextNotificationStatus,
+      notificationScheduledAt: notificationAction === 'schedule' ? notificationScheduledAtISO(editing) : editing.notificationScheduledAt,
       notificationSentAt: notificationAction === 'send-now' ? new Date().toISOString() : editing.notificationSentAt,
     });
     const missing = nextStatus === 'Published' ? validatePublish(rec) : [];
@@ -380,7 +411,7 @@ function PromotionsView({
     setSelectedPromotionId(rec.id);
     if (rec.sendPush) {
       const action = notificationAction === 'send-now' ? 'Sent Notification'
-        : notificationAction === 'schedule' ? 'Scheduled Notification'
+        : notificationAction === 'schedule' ? 'Scheduled Promotion Notification'
         : previous ? 'Edited Notification' : 'Created Notification';
       logNotification(action, rec, rec.notificationStatus || 'Draft');
     }
@@ -391,8 +422,23 @@ function PromotionsView({
     const rec = normalizePromotion(promo);
     const missing = status === 'Published' ? validatePublish(rec) : [];
     if (missing.length) { setEditing(rec); setErrors(missing); return; }
-    setPromotions(prev => prev.map(p => p.id === promo.id ? { ...rec, status } : p));
+    const next = status === 'Draft' ? { ...cancelScheduledNotification(rec, 'unpublish'), status } : { ...rec, status };
+    setPromotions(prev => prev.map(p => p.id === promo.id ? next : p));
     setSelectedPromotionId(promo.id);
+  };
+
+  const cancelEditingScheduledNotification = () => {
+    if (!editing || editing.notificationStatus !== 'Scheduled') return;
+    const rec = {
+      ...normalizePromotion(editing),
+      status: 'Published' as const,
+      notificationStatus: 'Cancelled' as const,
+      notificationCancelledAt: new Date().toISOString(),
+      notificationCancelReason: 'manual' as const,
+    };
+    setEditing(rec);
+    setPromotions(prev => prev.map(p => p.id === rec.id ? rec : p));
+    logNotification('Cancelled Scheduled Promotion Notification', rec, 'Cancelled');
   };
 
   const requestDelete = (promo: Promotion) => {
@@ -402,6 +448,7 @@ function PromotionsView({
   const confirmDelete = () => {
     if (!deleting) return;
     const promo = deleting;
+    cancelScheduledNotification(promo, 'delete');
     setPromotions(prev => prev.filter(p => p.id !== promo.id));
     if (selectedPromotionId === promo.id) {
       const next = promotions.find(p => p.id !== promo.id);
@@ -435,16 +482,16 @@ function PromotionsView({
     <div
       onDragOver={e => e.preventDefault()}
       onDrop={e => { e.preventDefault(); handleImage(field, e.dataTransfer.files[0]); }}
-      className="border border-dashed border-[#D8C9BD] bg-stone-50 rounded-xl p-3 space-y-2"
+      className="border border-dashed border-[#dddddd] bg-stone-50 rounded-xl p-3 space-y-2"
     >
       <div className="flex items-center justify-between gap-2">
         <div><p className="text-[10px] font-black text-zinc-600 uppercase">{title}</p><p className="text-[9.5px] text-zinc-400">{hint}</p></div>
         {editing?.[field] && <button type="button" onClick={() => setField(field, '' as Promotion[ImageField])} className="text-[10px] font-bold text-red-600">{t('ลบ', 'Remove')}</button>}
       </div>
       {editing?.[field] ? (
-        <img src={editing[field]} alt={title} className="w-full h-24 object-cover rounded-lg border border-[#E6DFD9]" />
+        <img src={editing[field]} alt={title} className="w-full h-24 object-cover rounded-lg border border-[#dddddd]" />
       ) : (
-        <label className="h-24 rounded-lg border border-[#E6DFD9] bg-white flex flex-col items-center justify-center text-zinc-400 text-[10px] font-semibold cursor-pointer">
+        <label className="h-24 rounded-lg border border-[#dddddd] bg-white flex flex-col items-center justify-center text-zinc-400 text-[10px] font-semibold cursor-pointer">
           <ImageIcon size={18} className="mb-1" /> {t('ลากรูปมาวาง หรือคลิกเพื่ออัปโหลด', 'Drag image here or click to upload')}
           <input type="file" accept="image/jpeg,image/png,image/webp" className="hidden" onChange={e => handleImage(field, e.target.files?.[0])} />
         </label>
@@ -458,18 +505,18 @@ function PromotionsView({
 
   return (
     <div className="p-6 space-y-5 font-sans">
-      <div className="bg-white border border-[#E6DFD9] rounded-xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+      <div className="bg-white border border-[#dddddd] rounded-xl p-4 flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-3 shadow-xs">
         <div>
-          <h2 className="font-black text-lg text-[#2E2A25]">{t('จัดการโปรโมชัน', 'Promotion Management')}</h2>
+          <h2 className="font-black text-lg text-[#181d26]">{t('จัดการโปรโมชัน', 'Promotion Management')}</h2>
           <p className="text-xs text-zinc-500">{t('จัดการแบนเนอร์ รายการโปรโมชัน หน้ารายละเอียด และการแจ้งเตือนลูกค้า', 'Manage mobile banners, promotion lists, detail pages, and push notifications.')}</p>
         </div>
-        <button id="create-promotion-btn" onClick={openCreate} className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
+        <button id="create-promotion-btn" onClick={openCreate} className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
           <Plus size={14} /> {t('สร้างโปรโมชัน', 'Create Promotion')}
         </button>
       </div>
 
       {successMessage && (
-        <div className="fixed bottom-5 right-5 z-50 px-4 py-3 bg-[#2E2A25] text-white text-xs font-semibold rounded-xl shadow-2xl flex items-center gap-2 animate-fade-in">
+        <div className="fixed bottom-5 right-5 z-50 px-4 py-3 bg-[#181d26] text-white text-xs font-semibold rounded-xl shadow-2xl flex items-center gap-2 animate-fade-in">
           <Check size={15} className="text-emerald-400" /> {successMessage}
         </div>
       )}
@@ -485,14 +532,14 @@ function PromotionsView({
               onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') setSelectedPromotionId(promo.id); }}
               role="button"
               tabIndex={0}
-              className={`border rounded-xl p-4 shadow-xs flex flex-col md:flex-row gap-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#8B6B4F]/30 ${isPreviewing ? 'bg-[#FDF7F1] border-[#8B6B4F]' : 'bg-white border-[#E6DFD9] hover:bg-stone-50'}`}
+              className={`border rounded-xl p-4 shadow-xs flex flex-col md:flex-row flex-wrap gap-4 cursor-pointer transition-colors focus:outline-none focus:ring-2 focus:ring-[#181d26]/30 ${isPreviewing ? 'bg-[#f8fafc] border-[#181d26]' : 'bg-white border-[#dddddd] hover:bg-stone-50'}`}
             >
-              <div className="w-full md:w-32 h-24 bg-stone-100 rounded-lg overflow-hidden shrink-0 border border-[#E6DFD9]">
+              <div className="w-full md:w-32 h-24 bg-stone-100 rounded-lg overflow-hidden shrink-0 border border-[#dddddd]">
                 {promo.bannerImage || promo.thumbnailImage ? <img src={promo.bannerImage || promo.thumbnailImage} alt={promo.title} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-3xl">%</div>}
               </div>
               <div className="flex-1 min-w-0 space-y-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  {isPreviewing && <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#8B6B4F] text-white">{t('กำลังแสดงตัวอย่าง', 'Currently Previewing')}</span>}
+                  {isPreviewing && <span className="text-[9px] font-black px-2 py-0.5 rounded-full bg-[#181d26] text-white">{t('กำลังแสดงตัวอย่าง', 'Currently Previewing')}</span>}
                   <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusStyle(promo.status)}`}>{statusLabel(promo.status)}</span>
                   <span className="text-[9px] font-mono text-zinc-400">{targetLabel(promo)}</span>
                 </div>
@@ -509,14 +556,14 @@ function PromotionsView({
               <div className="flex md:flex-col items-center md:items-end justify-between gap-2 shrink-0">
                 <div className="text-right">
                   <p className="text-[9px] text-zinc-400 uppercase font-bold">{t('คลิก / วิว', 'Clicks / Views')}</p>
-                  <p className="font-mono font-black text-[#8B6B4F]">{promo.clicks.toLocaleString()} / {(promo.views || 0).toLocaleString()}</p>
+                  <p className="font-mono font-black text-[#181d26]">{promo.clicks.toLocaleString()} / {(promo.views || 0).toLocaleString()}</p>
                 </div>
                 <div className="flex flex-wrap justify-end gap-1.5">
-                  <button onClick={(e) => { e.stopPropagation(); openEdit(promo); }} className="px-3 py-1.5 text-[10px] font-bold border border-[#E6DFD9] rounded-lg hover:bg-stone-50">{t('แก้ไข', 'Edit')}</button>
+                  <button onClick={(e) => { e.stopPropagation(); openEdit(promo); }} className="px-3 py-1.5 text-[10px] font-bold border border-[#dddddd] rounded-lg hover:bg-stone-50">{t('แก้ไข', 'Edit')}</button>
                   <button onClick={(e) => { e.stopPropagation(); requestDelete(promo); }} className="px-3 py-1.5 text-[10px] font-bold border border-red-200 text-red-600 rounded-lg hover:bg-red-50 inline-flex items-center gap-1">
                     <Trash2 size={11} /> {t('ลบ', 'Delete')}
                   </button>
-                  {statusLabel(promo.status) === 'Published' ? (
+                  {statusLabel(promo.status) === 'Published' || statusLabel(promo.status) === 'Scheduled Notification' ? (
                     <button onClick={(e) => { e.stopPropagation(); changeStatus(promo, 'Draft'); }} className="px-3 py-1.5 text-[10px] font-bold bg-zinc-100 text-zinc-600 rounded-lg">{t('ยกเลิกเผยแพร่', 'Unpublish')}</button>
                   ) : (
                     <button onClick={(e) => { e.stopPropagation(); changeStatus(promo, 'Published'); }} className="px-3 py-1.5 text-[10px] font-bold bg-emerald-600 text-white rounded-lg">{t('เผยแพร่', 'Publish')}</button>
@@ -528,9 +575,9 @@ function PromotionsView({
           })}
         </div>
 
-        <div className="bg-white border border-[#E6DFD9] rounded-xl p-4 shadow-xs self-start space-y-4">
+        <div className="bg-white border border-[#dddddd] rounded-xl p-4 shadow-xs self-start space-y-4">
           <div>
-            <h3 className="font-bold text-sm text-[#2E2A25]">{t('ตัวอย่างบนแอปมือถือ', 'Mobile App Preview')}</h3>
+            <h3 className="font-bold text-sm text-[#181d26]">{t('ตัวอย่างบนแอปมือถือ', 'Mobile App Preview')}</h3>
             <p className="text-[10px] text-zinc-500 mt-0.5">
               {selectedPromotion ? `${t('กำลังแสดง', 'Previewing')}: ${preview.title || t('ยังไม่มีชื่อโปรโมชัน', 'Untitled promotion')}` : t('ยังไม่มีโปรโมชันให้แสดงตัวอย่าง', 'No promotion selected for preview.')}
             </p>
@@ -540,7 +587,7 @@ function PromotionsView({
               <div className="p-3 space-y-3">
                 <div>
                   <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('แบนเนอร์โปรโมชันเด่น', 'Trending Promotion banner')}</p>
-                  <div className="h-32 rounded-xl overflow-hidden bg-[#FDF1E6] relative">
+                  <div className="h-32 rounded-xl overflow-hidden bg-[#f8fafc] relative">
                     {preview.bannerImage && <img src={preview.bannerImage} alt="" className="absolute inset-0 w-full h-full object-cover" />}
                     <div className="absolute inset-0 bg-gradient-to-r from-black/45 to-transparent p-3 flex flex-col justify-end">
                       <p className="text-white font-black text-sm">{preview.title || 'Promotion Title'}</p>
@@ -552,14 +599,14 @@ function PromotionsView({
                   <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('รายการโปรโมชันทั้งหมด', 'All Promotions list item')}</p>
                   <div className="flex gap-2 p-2 rounded-xl border border-zinc-100">
                     <div className="w-16 h-16 rounded-lg bg-stone-100 overflow-hidden shrink-0">{preview.thumbnailImage && <img src={preview.thumbnailImage} alt="" className="w-full h-full object-cover" />}</div>
-                    <div className="min-w-0"><p className="font-bold text-xs truncate">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500 line-clamp-2">{preview.shortDescription || preview.subtitle || 'Short description'}</p><p className="text-[9px] text-[#8B6B4F] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p></div>
+                    <div className="min-w-0"><p className="font-bold text-xs truncate">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500 line-clamp-2">{preview.shortDescription || preview.subtitle || 'Short description'}</p><p className="text-[9px] text-[#181d26] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p></div>
                   </div>
                 </div>
                 <div>
                   <p className="text-[10px] font-bold text-zinc-400 mb-1">{t('หน้ารายละเอียดโปรโมชัน', 'Promotion Detail page')}</p>
                   <div className="rounded-xl border border-zinc-100 overflow-hidden">
                     <div className="h-28 bg-stone-100">{preview.detailImage && <img src={preview.detailImage} alt="" className="w-full h-full object-cover" />}</div>
-                    <div className="p-3 space-y-1"><p className="font-black text-sm">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500">{preview.fullDescription || 'Full promotion description appears here.'}</p><p className="text-[9px] text-[#8B6B4F] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p><p className="text-[9px] text-zinc-400">{targetLabel(preview)}</p><button className="w-full mt-2 py-2 bg-[#8B6B4F] text-white rounded-lg text-[10px] font-bold">{t('สั่งเลย', 'Order Now')}</button></div>
+                    <div className="p-3 space-y-1"><p className="font-black text-sm">{preview.title || 'Promotion Title'}</p><p className="text-[10px] text-zinc-500">{preview.fullDescription || 'Full promotion description appears here.'}</p><p className="text-[9px] text-[#181d26] font-mono">{preview.startDate || 'Start'} - {preview.endDate || 'End'}</p><p className="text-[9px] text-zinc-400">{targetLabel(preview)}</p><button className="w-full mt-2 py-2 bg-[#181d26] text-white rounded-lg text-[10px] font-bold">{t('สั่งเลย', 'Order Now')}</button></div>
                   </div>
                 </div>
               </div>
@@ -571,8 +618,8 @@ function PromotionsView({
       {editing && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={() => setEditing(null)}>
           <div className="w-full max-w-3xl h-full bg-stone-50 shadow-2xl flex flex-col" onClick={e => e.stopPropagation()}>
-            <div className="p-4 bg-white border-b border-[#E6DFD9] flex items-center justify-between">
-              <div><h3 className="font-bold text-sm text-[#2E2A25]">{editing.title ? t('แก้ไขโปรโมชัน', 'Edit Promotion') : t('สร้างโปรโมชัน', 'Create Promotion')}</h3><p className="text-[11px] text-zinc-400">{editing.id}</p></div>
+            <div className="p-4 bg-white border-b border-[#dddddd] flex items-center justify-between">
+              <div><h3 className="font-bold text-sm text-[#181d26]">{editing.title ? t('แก้ไขโปรโมชัน', 'Edit Promotion') : t('สร้างโปรโมชัน', 'Create Promotion')}</h3><p className="text-[11px] text-zinc-400">{editing.id}</p></div>
               <button onClick={() => setEditing(null)} className="text-zinc-400 hover:text-zinc-700"><X size={18} /></button>
             </div>
             <div className="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
@@ -584,13 +631,13 @@ function PromotionsView({
                 <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('เงื่อนไข', 'Terms & Conditions')}</span><textarea value={editing.terms || ''} onChange={e => setField('terms', e.target.value)} className="w-full p-2 border rounded-lg h-20 resize-none" /></label>
                 <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันเริ่มต้น', 'Start Date')} *</span><input type="date" value={editing.startDate} onChange={e => setField('startDate', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
                 <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันสิ้นสุด', 'End Date')} *</span><input type="date" value={editing.endDate} onChange={e => setField('endDate', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
-                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('สถานะ', 'Promotion Status')}</span><select value={statusLabel(editing.status)} onChange={e => setField('status', e.target.value as Promotion['status'])} className="w-full p-2 border rounded-lg"><option>Draft</option><option>Published</option><option>Scheduled</option><option>Expired</option></select></label>
+                <label className="space-y-1"><span className="font-bold text-zinc-500">{t('สถานะ', 'Promotion Status')}</span><select value={statusLabel(editing.status)} onChange={e => setField('status', e.target.value as Promotion['status'])} className="w-full p-2 border rounded-lg"><option>Draft</option><option>Published</option><option>Scheduled Notification</option><option>Expired</option></select></label>
                 <label className="space-y-1"><span className="font-bold text-zinc-500">{t('สาขาเป้าหมาย', 'Target Branch')} *</span><select value={editing.targetBranch} onChange={e => setField('targetBranch', e.target.value as Branch)} className="w-full p-2 border rounded-lg"><option value="All Branches">{t('ทุกสาขา', 'All Branches')}</option><option value="Central Plaza">{t('เลือกบางสาขา', 'Specific Branches')}</option></select></label>
                 {editing.targetBranch !== 'All Branches' && (
                   <div className="md:col-span-2 flex flex-wrap gap-2">
                     {BRANCH_OPTIONS.map(branch => {
                       const active = (editing.targetBranches || []).includes(branch);
-                      return <button key={branch} type="button" onClick={() => setField('targetBranches', active ? (editing.targetBranches || []).filter(b => b !== branch) : [...(editing.targetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border ${active ? 'bg-[#8B6B4F] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
+                      return <button key={branch} type="button" onClick={() => setField('targetBranches', active ? (editing.targetBranches || []).filter(b => b !== branch) : [...(editing.targetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border ${active ? 'bg-[#181d26] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
                     })}
                   </div>
                 )}
@@ -608,7 +655,7 @@ function PromotionsView({
                 <label className="md:col-span-2 space-y-1"><span className="font-bold text-zinc-500">{t('พฤติกรรมปุ่ม Order Now', 'Order Now button behavior')}</span><input value={editing.orderNowBehavior || ''} onChange={e => setField('orderNowBehavior', e.target.value)} className="w-full p-2 border rounded-lg" /></label>
               </section>
 
-              <section className="bg-white border border-[#E6DFD9] rounded-xl p-3 space-y-3 text-xs">
+              <section className="bg-white border border-[#dddddd] rounded-xl p-3 space-y-3 text-xs">
                 <label className="flex items-center gap-2 font-bold"><input type="checkbox" checked={!!editing.sendPush} onChange={e => setField('sendPush', e.target.checked)} /> {t('ส่ง Push Notification หลังเผยแพร่', 'Send Push Notification after publish')}</label>
                 {editing.sendPush && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -618,11 +665,20 @@ function PromotionsView({
                       </div>
                     )}
                     <label className="space-y-1"><span className="font-bold text-zinc-500">{t('หัวข้อแจ้งเตือน', 'Notification Title')} *</span><input disabled={editing.notificationStatus === 'Sent'} placeholder={t('หัวข้อแจ้งเตือน', 'Notification Title')} value={editing.notificationTitle || ''} onChange={e => setField('notificationTitle', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
-                    <label className="space-y-1"><span className="font-bold text-zinc-500">{t('รูปแบบการส่ง', 'Notification Schedule Type')}</span><select disabled={editing.notificationStatus === 'Sent'} value={editing.notificationScheduleType || 'Send Immediately'} onChange={e => setField('notificationScheduleType', e.target.value as Promotion['notificationScheduleType'])} className="w-full p-2 border rounded-lg disabled:bg-zinc-100"><option>Send Immediately</option><option>Schedule for Later</option></select></label>
+                    {editing.notificationStatus === 'Scheduled' && (
+                      <div className="md:col-span-2 p-2.5 bg-sky-50 border border-sky-200 rounded-lg text-sky-800 font-semibold flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-2">
+                        <span>{t('แจ้งเตือนนี้ถูกตั้งเวลาไว้และยังแก้ไขหรือยกเลิกได้ก่อนถึงเวลาส่ง', 'This notification is scheduled and can be edited or cancelled before send time.')}</span>
+                        <button type="button" onClick={cancelEditingScheduledNotification} className="px-3 py-1.5 rounded-lg bg-white border border-sky-200 text-sky-800 text-[10px] font-black">
+                          {t('ยกเลิกการตั้งเวลา', 'Cancel Scheduled Notification')}
+                        </button>
+                      </div>
+                    )}
+                    <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วิธีการส่ง', 'Delivery Method')}</span><select disabled={editing.notificationStatus === 'Sent'} value={editing.notificationScheduleType || 'Send Immediately'} onChange={e => setField('notificationScheduleType', e.target.value as Promotion['notificationScheduleType'])} className="w-full p-2 border rounded-lg disabled:bg-zinc-100"><option>Send Immediately</option><option>Schedule for Later</option></select></label>
                     {editing.notificationScheduleType === 'Schedule for Later' && (
                       <>
-                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันที่แจ้งเตือน', 'Notification Date')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="date" value={editing.notificationDate || ''} onChange={e => setField('notificationDate', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
-                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('เวลาแจ้งเตือน', 'Notification Time')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="time" value={editing.notificationTime || ''} onChange={e => setField('notificationTime', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('วันที่ตั้งส่ง', 'Scheduled Date')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="date" value={editing.notificationDate || ''} onChange={e => setField('notificationDate', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('เวลาตั้งส่ง', 'Scheduled Time')} *</span><input disabled={editing.notificationStatus === 'Sent'} type="time" value={editing.notificationTime || ''} onChange={e => setField('notificationTime', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
+                        <label className="space-y-1"><span className="font-bold text-zinc-500">{t('เขตเวลา', 'Time Zone')} <span className="font-normal text-zinc-400">({t('ไม่บังคับ', 'optional')})</span></span><input disabled={editing.notificationStatus === 'Sent'} placeholder="Asia/Bangkok" value={editing.notificationTimeZone || ''} onChange={e => setField('notificationTimeZone', e.target.value)} className="w-full p-2 border rounded-lg disabled:bg-zinc-100" /></label>
                       </>
                     )}
                     <label className="space-y-1"><span className="font-bold text-zinc-500">{t('กลุ่มเป้าหมาย', 'Target Audience')} *</span><select disabled={editing.notificationStatus === 'Sent'} value={editing.notificationTargetAudience || 'All Users'} onChange={e => setField('notificationTargetAudience', e.target.value as Promotion['notificationTargetAudience'])} className="w-full p-2 border rounded-lg disabled:bg-zinc-100"><option>All Users</option><option>All Branches</option><option>Selected Branches</option><option>Customers of Selected Branches</option></select></label>
@@ -631,11 +687,11 @@ function PromotionsView({
                       <div className="md:col-span-2 flex flex-wrap gap-2">
                         {BRANCH_OPTIONS.map(branch => {
                           const active = (editing.notificationTargetBranches || []).includes(branch);
-                          return <button key={branch} type="button" disabled={editing.notificationStatus === 'Sent'} onClick={() => setField('notificationTargetBranches', active ? (editing.notificationTargetBranches || []).filter(b => b !== branch) : [...(editing.notificationTargetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border disabled:opacity-50 ${active ? 'bg-[#8B6B4F] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
+                          return <button key={branch} type="button" disabled={editing.notificationStatus === 'Sent'} onClick={() => setField('notificationTargetBranches', active ? (editing.notificationTargetBranches || []).filter(b => b !== branch) : [...(editing.notificationTargetBranches || []), branch])} className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border disabled:opacity-50 ${active ? 'bg-[#181d26] text-white' : 'bg-white text-zinc-500'}`}>{branch}</button>;
                         })}
                       </div>
                     )}
-                    <div className="md:col-span-2 p-3 bg-stone-50 border border-[#E6DFD9] rounded-xl space-y-1">
+                    <div className="md:col-span-2 p-3 bg-stone-50 border border-[#dddddd] rounded-xl space-y-1">
                       <p className="font-black text-[10px] uppercase text-zinc-500">{t('ตัวอย่างแจ้งเตือน', 'Notification Preview')}</p>
                       <p className="font-bold text-zinc-900">{editing.notificationTitle || t('หัวข้อแจ้งเตือน', 'Notification Title')}</p>
                       <p className="text-zinc-600">{editing.notificationMessage || t('ข้อความแจ้งเตือนจะแสดงที่นี่', 'Notification message appears here.')}</p>
@@ -645,9 +701,9 @@ function PromotionsView({
                 )}
               </section>
             </div>
-            <div className="p-4 bg-white border-t border-[#E6DFD9] flex justify-end gap-2">
+            <div className="p-4 bg-white border-t border-[#dddddd] flex justify-end gap-2">
               <button onClick={() => savePromotion('Draft')} className="px-4 py-2 border rounded-lg text-xs font-bold">{t('บันทึกฉบับร่าง', 'Save Draft')}</button>
-              <button onClick={() => savePromotion('Published')} className="px-4 py-2 bg-[#8B6B4F] text-white rounded-lg text-xs font-bold">{t('เผยแพร่', 'Publish')}</button>
+              <button onClick={() => savePromotion('Published')} className="px-4 py-2 bg-[#181d26] text-white rounded-lg text-xs font-bold">{t('เผยแพร่', 'Publish')}</button>
             </div>
           </div>
         </div>
@@ -665,7 +721,7 @@ function PromotionsView({
             </div>
             <div className="p-4 space-y-3 text-xs">
               <p className="text-zinc-700">{t('คุณแน่ใจหรือไม่ว่าต้องการลบโปรโมชันนี้?', 'Are you sure you want to delete this promotion?')}</p>
-              <div className="p-3 rounded-lg bg-stone-50 border border-[#E6DFD9]">
+              <div className="p-3 rounded-lg bg-stone-50 border border-[#dddddd]">
                 <p className="text-[10px] uppercase font-black text-zinc-400">{t('ชื่อโปรโมชัน', 'Promotion Name')}</p>
                 <p className="font-bold text-zinc-900 mt-0.5">{deleting.title || t('ยังไม่มีชื่อโปรโมชัน', 'Untitled promotion')}</p>
               </div>
@@ -674,7 +730,7 @@ function PromotionsView({
               </div>
             </div>
             <div className="p-4 border-t border-red-100 flex justify-end gap-2">
-              <button onClick={() => setDeleting(null)} className="px-4 py-2 border border-[#E6DFD9] rounded-lg text-xs font-bold text-zinc-600 hover:bg-stone-50">{t('ยกเลิก', 'Cancel')}</button>
+              <button onClick={() => setDeleting(null)} className="px-4 py-2 border border-[#dddddd] rounded-lg text-xs font-bold text-zinc-600 hover:bg-stone-50">{t('ยกเลิก', 'Cancel')}</button>
               <button onClick={confirmDelete} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold inline-flex items-center gap-1.5">
                 <Trash2 size={13} /> {t('ลบโปรโมชัน', 'Delete Promotion')}
               </button>
@@ -735,19 +791,19 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
 
   return (
     <div className="p-6 space-y-5 font-sans animate-fade-in">
-      <div className="bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] flex flex-col sm:flex-row sm:items-center justify-between gap-4.5 shadow-xs">
+      <div className="bg-[#FFFFFF] p-4.5 rounded-xl border border-[#dddddd] flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-4.5 shadow-xs">
         <div>
-          <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'ทะเบียนสมาชิกลูกค้า (CRM)' : 'Client CRM Registry'}</h3>
+          <h3 className="font-bold text-sm text-[#181d26]">{language === 'TH' ? 'ทะเบียนสมาชิกลูกค้า (CRM)' : 'Client CRM Registry'}</h3>
           <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'ดูข้อมูลติดต่อ วันเกิด ยอดใช้จ่าย และประวัติสมัครสมาชิกสำหรับงาน CRM และการตลาด' : 'Review contact details, birthdays, spend history, and signup dates for CRM and marketing.'}</p>
         </div>
 
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+        <div className="flex flex-col sm:flex-row flex-wrap gap-2 w-full sm:w-auto">
           <button
             id="export-members-excel-btn"
             onClick={handleExportMembers}
-            className="px-3.5 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs transition-all whitespace-nowrap"
+            className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl shadow-xs transition-all whitespace-nowrap"
           >
-            {language === 'TH' ? 'ส่งออกรายงาน Excel' : 'Export Excel Report'}
+            {language === 'TH' ? 'ส่งออก Excel' : 'Export Excel'}
           </button>
           <div className="relative w-full sm:w-64">
             <Search size={14} className="absolute left-3 top-2.5 text-zinc-400" />
@@ -756,18 +812,18 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
               placeholder={language === 'TH' ? 'ค้นหาชื่อสมาชิก, เบอร์โทรศัพท์...' : 'Search member name, phone...'}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full text-xs py-2 pl-9 pr-3 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+              className="w-full text-xs py-2 pl-9 pr-3 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#181d26]"
             />
           </div>
         </div>
       </div>
 
       {/* Roster table */}
-      <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
+      <div className="bg-[#FFFFFF] border border-[#dddddd] rounded-xl overflow-hidden shadow-xs">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse text-xs">
             <thead>
-              <tr className="border-b border-[#E6DFD9] bg-stone-50/50 text-[#8B6B4F]">
+              <tr className="border-b border-[#dddddd] bg-stone-50/50 text-[#181d26]">
                 <th className="py-3 px-4 font-bold uppercase tracking-wider w-[24%]">{language === 'TH' ? 'ชื่อสมาชิก' : 'Member Name'}</th>
                 <th className="py-3 px-4 font-bold uppercase tracking-wider w-[26%]">{language === 'TH' ? 'ข้อมูลติดต่อ' : 'Contact Info'}</th>
                 <th className="py-3 px-4 font-bold uppercase tracking-wider w-[16%]">{language === 'TH' ? 'วันเดือนปีเกิด' : 'Date of Birth'}</th>
@@ -788,7 +844,7 @@ function MembersView({ members, setMembers }: { members: Member[], setMembers: a
                   </td>
                   <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-700">{dateOfBirth(m)}</td>
                   <td className="py-3.5 px-4 text-right bg-amber-50/30">
-                    <strong className="font-mono text-[#8B6B4F] text-sm font-black">{formatCurrency(m.totalSpend)}</strong>
+                    <strong className="font-mono text-[#181d26] text-sm font-black">{formatCurrency(m.totalSpend)}</strong>
                     <span className="text-[10px] text-zinc-400 font-mono block">{m.totalOrders} {language === 'TH' ? 'ครั้งที่สั่งซื้อ' : 'orders'}</span>
                   </td>
                   <td className="py-3.5 px-4 font-mono text-[11px] text-zinc-600">{m.joinDate}</td>
@@ -887,9 +943,9 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
     <div className="p-6 space-y-6 font-sans">
       
       {/* Upper header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4.5 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] shadow-xs">
+      <div className="flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-4.5 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#dddddd] shadow-xs">
         <div>
-          <h3 className="font-bold text-sm text-[#2E2A25]">{language === 'TH' ? 'จัดการบัญชีผู้จัดการสาขา' : 'Branch Manager Account Management'}</h3>
+          <h3 className="font-bold text-sm text-[#181d26]">{language === 'TH' ? 'จัดการบัญชีผู้จัดการสาขา' : 'Branch Manager Account Management'}</h3>
           <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'สร้างและแก้ไขบัญชีเข้าสู่ระบบสำหรับผู้จัดการสาขาเท่านั้น' : 'Create and manage login accounts for Branch Managers only.'}</p>
         </div>
       </div>
@@ -897,11 +953,11 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in">
         
         {/* Listings roster */}
-        <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
+        <div className="lg:col-span-2 bg-[#FFFFFF] border border-[#dddddd] rounded-xl overflow-hidden shadow-xs">
 	          <div className="overflow-x-auto text-xs">
 	            <table className="w-full text-left border-collapse">
 	              <thead>
-	                <tr className="border-b border-[#E6DFD9] bg-stone-50/50">
+	                <tr className="border-b border-[#dddddd] bg-stone-50/50">
 	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Username' : 'Username'}</th>
 	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Password' : 'Password'}</th>
 	                  <th className="py-2.5 px-3 font-sans font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'Role' : 'Role'}</th>
@@ -922,7 +978,7 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
 	                      {maskedPassword}
 	                    </td>
 	                    <td className="py-3 px-3">
-	                      <span className={`px-2 py-0.5 font-bold rounded-md border text-[9px] ${isProtectedAdmin(s) ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-[#EAD1A8]/20 text-neutral-800 border-yellow-200'}`}>
+	                      <span className={`px-2 py-0.5 font-bold rounded-md border text-[9px] ${isProtectedAdmin(s) ? 'bg-rose-50 text-rose-800 border-rose-200' : 'bg-[#e0e2e6]/20 text-neutral-800 border-yellow-200'}`}>
 	                        {s.role}
 	                      </span>
 	                    </td>
@@ -936,7 +992,7 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
 	                        </span>
 	                      ) : (
 	                        <div className="flex items-center justify-center gap-1.5">
-	                          <button onClick={() => handleEditAccount(s)} className="px-2 py-1 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 rounded-md text-[10px] font-bold">
+	                          <button onClick={() => handleEditAccount(s)} className="px-2 py-1 border border-[#dddddd] hover:bg-stone-50 text-zinc-600 rounded-md text-[10px] font-bold">
 	                            {language === 'TH' ? 'แก้ไข' : 'Edit'}
 	                          </button>
 	                          <button onClick={() => setStaff((prev: Staff[]) => prev.filter(item => item.id !== s.id))} className="px-2 py-1 border border-red-100 hover:bg-red-50 text-red-600 rounded-md text-[10px] font-bold inline-flex items-center gap-1">
@@ -953,9 +1009,9 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
         </div>
 
         {/* Add staff panel sidebar */}
-        <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs self-start">
-	          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
-	            <h3 className="font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
+        <div className="bg-[#FFFFFF] border border-[#dddddd] rounded-xl overflow-hidden shadow-xs self-start">
+	          <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd]">
+	            <h3 className="font-bold text-sm text-[#181d26] flex items-center gap-1.5">
 	              <span>{editingId ? (language === 'TH' ? 'แก้ไขบัญชีผู้จัดการสาขา' : 'Edit Branch Manager Account') : (language === 'TH' ? 'เพิ่มบัญชีผู้จัดการสาขา' : 'Add Branch Manager Account')}</span>
 	            </h3>
 	            <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'Role ถูกกำหนดเป็น Branch Manager เท่านั้น' : 'Role is fixed to Branch Manager only.'}</p>
@@ -988,7 +1044,7 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
 
 	            <div className="space-y-1">
 	              <label className="font-bold">{language === 'TH' ? 'Role:' : 'Role:'}</label>
-	              <div className="w-full text-xs p-2.5 bg-[#EAD1A8]/20 border border-yellow-200 rounded-lg font-bold text-zinc-700">
+	              <div className="w-full text-xs p-2.5 bg-[#e0e2e6]/20 border border-yellow-200 rounded-lg font-bold text-zinc-700">
 	                Branch Manager
 	              </div>
 	            </div>
@@ -1008,12 +1064,12 @@ function StaffManagementView({ staff, setStaff }: { staff: Staff[], setStaff: an
 
 	            <button
 	              type="submit"
-	              className="w-full py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-xs font-bold rounded-lg shadow-xs mt-2"
+	              className="w-full py-2 bg-[#181d26] hover:bg-[#0d1218] text-white font-sans text-xs font-bold rounded-lg shadow-xs mt-2"
 	            >
 	              {editingId ? (language === 'TH' ? 'บันทึกการแก้ไข' : 'Save Changes') : (language === 'TH' ? 'สร้างบัญชี' : 'Create Account')}
 	            </button>
 	            {editingId && (
-	              <button type="button" onClick={resetForm} className="w-full py-1.5 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 font-sans text-[11px] font-bold rounded-lg">
+	              <button type="button" onClick={resetForm} className="w-full py-1.5 border border-[#dddddd] hover:bg-stone-50 text-zinc-600 font-sans text-[11px] font-bold rounded-lg">
 	                {language === 'TH' ? 'ยกเลิกการแก้ไข' : 'Cancel Edit'}
 	              </button>
 	            )}
@@ -1120,40 +1176,35 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
   return (
     <div className="p-6 space-y-6 font-sans">
       
-      {/* Title block */}
-      <div className="bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-        <div>
-          <h3 className="font-bold text-sm text-[#2E2A25]">
-            {language === 'TH' ? 'ระบบรายงานวิเคราะห์ยอดขาย (Sales Reports)' : 'Corporate Sales Report Deck'}
-          </h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">
-            {language === 'TH' 
-              ? 'คัดกรองข้อมูลยอดจัดซื้อรายสาขา หักลบส่วนลดแคมเปญ สรุปอันดับเครื่องดื่มขายดีเรียลไทม์' 
-              : 'Traces transactional metrics, aggregates active coupon discounts, and extracts products selling trends.'}
-          </p>
+      <div className="bg-white p-6 rounded-2xl border border-[#dddddd] shadow-sm space-y-4">
+        <div className="flex flex-col xl:flex-row flex-wrap xl:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-black text-lg text-[#181d26]">
+              {language === 'TH' ? 'ระบบรายงานวิเคราะห์ยอดขาย (Sales Reports)' : 'Corporate Sales Report Deck'}
+            </h3>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {language === 'TH' 
+                ? 'คัดกรองข้อมูลยอดจัดซื้อรายสาขา หักลบส่วนลดแคมเปญ สรุปอันดับเครื่องดื่มขายดีเรียลไทม์' 
+                : 'Traces transactional metrics, aggregates active coupon discounts, and extracts products selling trends.'}
+            </p>
+          </div>
+
+          <button 
+            id="export-sales-excel-btn"
+            onClick={handleExportExcel}
+            className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl font-sans shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer self-start xl:self-auto"
+          >
+            <FileSpreadsheet size={14} />
+            {language === 'TH' ? 'ส่งออก Excel' : 'Export Excel'}
+          </button>
         </div>
 
-        <button 
-          id="export-sales-excel-btn"
-          onClick={handleExportExcel}
-          className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg font-sans shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-        >
-          <FileSpreadsheet size={14} />
-          {language === 'TH' ? 'ส่งออกรายงานยอดขาย (Excel)' : 'Export Report (.xlsx)'}
-        </button>
-      </div>
-
-      {/* Control filters bar */}
-      <div className="bg-white border text-xs text-zinc-800 p-4.5 rounded-xl shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          
-          {/* Branch dropdown */}
-          <div className="space-y-1">
-            <label className="text-zinc-500 font-extrabold uppercase tracking-wide text-[9.5px] block">{language === 'TH' ? 'ตัวกรองสาขา:' : 'Filter Branch:'}</label>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <div>
             <select
               value={selectedBranchFilter}
               onChange={e => setSelectedBranchFilter(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-2 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             >
               <option value="All Branches">{language === 'TH' ? 'ทุกสาขาหน้าร้าน' : 'All Branches'}</option>
               <option value="Central Plaza">Central Plaza</option>
@@ -1163,24 +1214,21 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
             </select>
           </div>
 
-          {/* Date range filters */}
-          <div className="space-y-1">
-            <label className="text-zinc-500 font-extrabold uppercase tracking-wide text-[9.5px] block">{language === 'TH' ? 'เริ่มงานตั้งแต่วันที่:' : 'Start Date:'}</label>
+          <div>
             <input 
               type="date"
               value={startDate}
               onChange={e => setStartDate(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             />
           </div>
 
-          <div className="space-y-1">
-            <label className="text-zinc-500 font-extrabold uppercase tracking-wide text-[9.5px] block">{language === 'TH' ? 'สิ้นสุดวันที่:' : 'End Date:'}</label>
+          <div>
             <input 
               type="date"
               value={endDate}
               onChange={e => setEndDate(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             />
           </div>
 
@@ -1191,7 +1239,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-4 animate-fade-in">
         
         {/* Total Revenue */}
-        <div className="p-4 border border-[#E6DFD9] rounded-xl bg-white shadow-xs">
+        <div className="p-4 border border-[#dddddd] rounded-xl bg-white shadow-xs">
           <span className="text-[11.5px] text-zinc-500 font-bold uppercase tracking-wider block">{language === 'TH' ? 'รายได้ขายสุทธิ' : 'Revenue'}</span>
           <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block">
             {formatCurrency(totalRevenue)}
@@ -1202,18 +1250,18 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
         </div>
 
         {/* Total Orders count */}
-        <div className="p-4 border border-[#E6DFD9] rounded-xl bg-white shadow-xs">
+        <div className="p-4 border border-[#dddddd] rounded-xl bg-white shadow-xs">
           <span className="text-[11.5px] text-zinc-500 font-bold uppercase tracking-wider block">{language === 'TH' ? 'ปริมาณธุรกรรมตั๋ว' : 'Total OrdersCount'}</span>
           <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block">
             {totalOrdersCount} <span className="text-xs font-normal text-zinc-500">{language === 'TH' ? 'บิล' : 'bills'}</span>
           </strong>
-          <span className="text-[#8B6B4F] font-mono text-[10px] font-semibold mt-1 block">
+          <span className="text-[#181d26] font-mono text-[10px] font-semibold mt-1 block">
             {language === 'TH' ? 'รวมยอดทุกบิลในระบบ' : 'Total branch logs'}
           </span>
         </div>
 
         {/* Total Discounts applied */}
-        <div className="p-4 border border-[#E6DFD9] rounded-xl bg-white shadow-xs">
+        <div className="p-4 border border-[#dddddd] rounded-xl bg-white shadow-xs">
           <span className="text-[11.5px] text-zinc-500 font-bold uppercase tracking-wider block">{language === 'TH' ? 'ยอดที่คัดลดคูปอง' : 'Coupon Discounts Deducted'}</span>
           <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block text-amber-800">
             {formatCurrency(totalDiscount)}
@@ -1224,7 +1272,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
         </div>
 
         {/* VAT Transfer standard */}
-        <div className="p-4 border border-[#E6DFD9] rounded-xl bg-white shadow-xs">
+        <div className="p-4 border border-[#dddddd] rounded-xl bg-white shadow-xs">
           <span className="text-[11.5px] text-zinc-500 font-bold uppercase tracking-wider block">{language === 'TH' ? 'ยอดประมาณสรรพากร (7% VAT)' : 'Estimated 7% Tax Cut'}</span>
           <strong className="text-zinc-900 text-2xl font-black font-mono mt-1 w-full block">
             {formatCurrency(totalRevenue * 0.07)}
@@ -1260,9 +1308,9 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Top Products item lists */}
-        <div className="lg:col-span-8 bg-white border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs flex flex-col justify-between">
-          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
-            <h4 className="font-sans font-bold text-xs text-[#2E2A25] uppercase tracking-wide">
+        <div className="lg:col-span-8 bg-white border border-[#dddddd] rounded-xl overflow-hidden shadow-xs flex flex-col justify-between">
+          <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd]">
+            <h4 className="font-sans font-bold text-xs text-[#181d26] uppercase tracking-wide">
               {language === 'TH' ? '5 อันดับเครื่องดื่มยอดนิยม (Top Products)' : 'Top Products Leaderboard'}
             </h4>
           </div>
@@ -1287,7 +1335,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
                   </tr>
                 ) : (
                   sortedProducts.map((p, index) => (
-                    <tr key={p.name} className="hover:bg-[#FDFBF7]/40 transition-colors">
+                    <tr key={p.name} className="hover:bg-[#f8fafc]/40 transition-colors">
                       <td className="py-3 px-4 font-mono font-black text-zinc-400 text-sm">
                         #{index + 1}
                       </td>
@@ -1305,7 +1353,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
                       <td className="py-3 px-4 text-right font-mono font-bold text-zinc-700">
                         {p.qty} cups
                       </td>
-                      <td className="py-3 px-4 text-right font-mono font-extrabold text-[#8B6B4F]">
+                      <td className="py-3 px-4 text-right font-mono font-extrabold text-[#181d26]">
                         {formatCurrency(p.revenue)}
                       </td>
                     </tr>
@@ -1317,7 +1365,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
         </div>
 
         {/* Small distribution widget visual */}
-        <div className="lg:col-span-4 bg-white border border-[#E6DFD9] rounded-xl p-5 shadow-xs flex flex-col justify-between">
+        <div className="lg:col-span-4 bg-white border border-[#dddddd] rounded-xl p-5 shadow-xs flex flex-col justify-between">
           <div className="space-y-1">
             <h4 className="font-bold text-xs text-zinc-800 uppercase tracking-wide">{language === 'TH' ? 'อัตราแจกแจงตามประเภทสินค้า' : 'Categorical Distribution'}</h4>
             <p className="text-[10px] text-zinc-400 leading-snug">{language === 'TH' ? 'สถิติสัดส่วนยอดจัดส่งแบ่งกลุ่มกาแฟ และขนมหวานอบ' : 'Categorical unit sales distribution for selected parameters'}</p>
@@ -1325,8 +1373,8 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
 
           <div className="space-y-4 pt-5">
             {[
-              { labelName: 'Coffee & Espresso (กลุ่มกาแฟ)', count: '63%', bg: 'bg-[#8B6B4F]' },
-              { labelName: 'Teas & Refreshments (เครื่องดื่มชา)', count: '24%', bg: 'bg-[#A8BB9A]' },
+              { labelName: 'Coffee & Espresso (กลุ่มกาแฟ)', count: '63%', bg: 'bg-[#181d26]' },
+              { labelName: 'Teas & Refreshments (เครื่องดื่มชา)', count: '24%', bg: 'bg-[#a8d8c4]' },
               { labelName: 'Bakeries & snacks (เค้กและขนมปัง)', count: '13%', bg: 'bg-zinc-300' }
             ].map((cat) => (
               <div key={cat.labelName} className="space-y-1.5">
@@ -1334,7 +1382,7 @@ function ReportsView({ orders = [] }: { orders?: Order[] }) {
                   <span className="text-zinc-600 font-medium font-sans leading-none">{cat.labelName}</span>
                   <span className="font-mono font-bold text-zinc-800">{cat.count}</span>
                 </div>
-                <div className="w-full bg-[#FDFBF7] h-2 rounded-full overflow-hidden border">
+                <div className="w-full bg-[#f8fafc] h-2 rounded-full overflow-hidden border">
                   <div className={`h-full rounded-full ${cat.bg}`} style={{ width: cat.count }} />
                 </div>
               </div>
@@ -1383,17 +1431,17 @@ function NotificationCenterView({ activities, setActivities }: { activities: Act
     <div className="p-6 space-y-6 font-sans">
       
       {/* Broadcast Form Panel */}
-      <div className="bg-white border border-[#E6DFD9] rounded-xl p-5 shadow-xs space-y-4">
+      <div className="bg-white border border-[#dddddd] rounded-xl p-5 shadow-xs space-y-4">
         <div>
-          <h3 className="font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
-            <Bell size={16} className="text-[#8B6B4F]" />
+          <h3 className="font-bold text-sm text-[#181d26] flex items-center gap-1.5">
+            <Bell size={16} className="text-[#181d26]" />
             <span>{language === 'TH' ? 'แผงเครื่องควบคุมยึดโยงประกาศข่าวลือด่วน' : 'Interactive Broadcaster Terminal'}</span>
           </h3>
           <p className="text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'ยิงประกาศเหตุการณ์ฉุกเฉิน ยอดคูปองพิเศษ หรือแคมเปญลัดลงแผงประวัติสตรีมเพื่อสื่อสารพนักงานด่วน' : 'Inject direct alerts, promos or system notifications instantly into recent activities feeds'}</p>
         </div>
 
         {success && (
-          <div className="bg-[#EBF9F1] text-emerald-800 border p-3.5 rounded-lg text-xs leading-relaxed font-bold">
+          <div className="bg-[#f8fafc] text-emerald-800 border p-3.5 rounded-lg text-xs leading-relaxed font-bold">
             {language === 'TH' 
               ? '🎉 ประกาศข่าวสำเร็จแบบเรียลไทม์! สัญญานข่าวสารลัดของท่านได้ถูกผนวกเข้าสู่ระบบคิวสตรีมแล้ว'
               : '🎉 Alert broadcasted live! Your command has been successfully injected into the global timelines logs feed.'
@@ -1413,7 +1461,7 @@ function NotificationCenterView({ activities, setActivities }: { activities: Act
                 placeholder={language === 'TH' ? 'ตัวอย่าง: มีแคมเปญพิเศษแถมวิปครีมฟรีช่วงเที่ยงนี้ บาริสต้าโปรดเกณฑ์เตรียมความพร้อม...' : 'e.g. Free caramel syrup upgrades are active this morning! Check coupons...'}
                 value={broadText}
                 onChange={e => setBroadText(e.target.value)}
-                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F] font-semibold text-zinc-850"
+                className="w-full text-xs p-2.5 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#181d26] font-semibold text-zinc-850"
               />
             </div>
 
@@ -1471,7 +1519,7 @@ function NotificationCenterView({ activities, setActivities }: { activities: Act
 
             return (
               <div key={act.id} className="p-3 flex items-start gap-3.5 text-xs">
-                <span className="px-2 py-0.5 rounded text-[8.5px] font-mono font-bold uppercase shrink-0 bg-stone-100 text-[#8B6B4F]">
+                <span className="px-2 py-0.5 rounded text-[8.5px] font-mono font-bold uppercase shrink-0 bg-stone-100 text-[#181d26]">
                   {act.type}
                 </span>
                 <div className="flex-1">
@@ -1497,13 +1545,15 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
   const [selectedModule, setSelectedModule] = useState('All');
   const [selectedUser, setSelectedUser] = useState('All');
   const [selectedActionType, setSelectedActionType] = useState('All');
-  const [startDate, setStartDate] = useState('2026-06-01');
+  const [startDate, setStartDate] = useState('2026-05-01');
   const [endDate, setEndDate] = useState('2026-06-30');
 
   const assignedBranchForUser = (username: string) => ({
     admin: 'All Branches',
     'central.manager': 'Central Plaza',
+    'siam.manager': 'Siam Square',
     'mega.manager': 'Mega Bangna',
+    'korat.manager': 'The Mall Korat',
     system: 'System',
   }[username] || '-');
 
@@ -1533,25 +1583,36 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
     else if (!act.action && (text.includes('delete') || text.includes('ลบ'))) actionType = 'Deleted Record';
     else if (!act.action && (text.includes('confirm') || text.includes('ยืนยัน') || text.includes('verify') || text.includes('ตรวจสอบ'))) actionType = 'Confirmed Record';
 
-    return { user, role, actionType, assignedBranch: assignedBranchForUser(user) };
+    return { user, role, actionType, assignedBranch: act.assignedBranch || assignedBranchForUser(user), module: act.module || act.type, relatedRecordId: act.relatedRecordId || act.id };
+  };
+
+  // Convert an activity timestamp "DD/MM/YYYY HH:mm" → "YYYY-MM-DD" for range comparison
+  const isoDateOf = (time: string) => {
+    const datePart = (time || '').trim().split(' ')[0];
+    const m = datePart.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+    return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
   };
 
   const filteredActivities = activities.filter(act => {
     const details = getAuditDetails(act);
-    
-    const textMatched = 
+
+    const textMatched =
       act.text.toLowerCase().includes(searchTerm.toLowerCase()) ||
       act.id.toLowerCase().includes(searchTerm.toLowerCase());
-      
+
     const moduleMatched = selectedModule === 'All' || act.type === selectedModule.toLowerCase();
     const userMatched = selectedUser === 'All' || details.user === selectedUser;
     const actionMatched = selectedActionType === 'All' || details.actionType.toLowerCase().includes(selectedActionType.toLowerCase());
-    
-    return textMatched && moduleMatched && userMatched && actionMatched;
+
+    // Date range applies to the table AND the exported report (entries without a parseable date are kept)
+    const iso = isoDateOf(act.time);
+    const dateMatched = !iso || ((!startDate || iso >= startDate) && (!endDate || iso <= endDate));
+
+    return textMatched && moduleMatched && userMatched && actionMatched && dateMatched;
   });
 
   const handleExportCSV = () => {
-    const headers = ['Date/Time', 'Username', 'Assigned Branch', 'Role', 'Action'];
+    const headers = ['Date/Time', 'Username', 'Assigned Branch', 'Role', 'Module', 'Action', 'Related Record ID'];
     const rows = filteredActivities.map(act => {
       const details = getAuditDetails(act);
       return [
@@ -1559,7 +1620,9 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
         details.user,
         details.assignedBranch,
         details.role,
-        details.actionType.replace(/"/g, '""')
+        details.module,
+        details.actionType.replace(/"/g, '""'),
+        details.relatedRecordId,
       ];
     });
     
@@ -1576,49 +1639,69 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
 
   return (
     <div className="p-6 space-y-6 font-sans">
-      <div className="bg-white p-5 rounded-xl border border-[#E6DFD9] flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
-        <div>
-          <h3 className="font-bold text-sm text-[#2E2A25]">
-            {language === 'TH' ? 'ระบบบันทึกประวัติการทำงาน (Audit Logs)' : 'Corporate Audit Trail Logs'}
-          </h3>
-          <p className="text-[11px] text-zinc-500 mt-0.5">
-            {language === 'TH' 
-              ? 'บันทึกประวัติความเคลื่อนไหวธุรกรรม คุมสิทธิ์พนักงาน การปรับระบบคลัง ทราฟฟิกไอพีแอดเดรสรัดกุม' 
-              : 'Detailed tracking of operational overrides, coupon adjustments, barista actions, and diagnostic network client IPs.'}
-          </p>
+      <div className="bg-white p-6 rounded-2xl border border-[#dddddd] shadow-sm space-y-4">
+        <div className="flex flex-col xl:flex-row flex-wrap xl:items-center justify-between gap-4">
+          <div>
+            <h3 className="font-black text-lg text-[#181d26]">
+              {language === 'TH' ? 'ระบบบันทึกประวัติการทำงาน (Audit Logs)' : 'Corporate Audit Trail Logs'}
+            </h3>
+            <p className="text-xs text-zinc-500 mt-0.5">
+              {language === 'TH' 
+                ? 'บันทึกประวัติความเคลื่อนไหวธุรกรรม คุมสิทธิ์พนักงาน การปรับระบบคลัง ทราฟฟิกไอพีแอดเดรสรัดกุม' 
+                : 'Detailed tracking of operational overrides, coupon adjustments, barista actions, and diagnostic network client IPs.'}
+            </p>
+          </div>
+          
+          {/* Date range sits with the Export action so the range clearly scopes the exported report */}
+          <div className="flex flex-wrap items-end gap-2 self-start xl:self-auto">
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'วันที่เริ่ม' : 'Start Date'}</span>
+              <input
+                id="audit-start-date"
+                type="date"
+                value={startDate}
+                onChange={e => setStartDate(e.target.value)}
+                className="h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 font-mono text-xs text-zinc-600 focus:outline-none focus:border-[#181d26] cursor-pointer"
+              />
+            </label>
+            <label className="flex flex-col gap-1">
+              <span className="text-[10px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'วันที่สิ้นสุด' : 'End Date'}</span>
+              <input
+                id="audit-end-date"
+                type="date"
+                value={endDate}
+                onChange={e => setEndDate(e.target.value)}
+                className="h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 font-mono text-xs text-zinc-600 focus:outline-none focus:border-[#181d26] cursor-pointer"
+              />
+            </label>
+            <button
+              id="export-audit-excel-btn"
+              onClick={handleExportCSV}
+              className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl transition-colors flex items-center justify-center gap-1.5 shadow-xs cursor-pointer"
+            >
+              <Download size={14} />
+              {language === 'TH' ? 'ส่งออก Excel' : 'Export Excel'}
+            </button>
+          </div>
         </div>
-        
-        <button 
-          id="export-audit-excel-btn"
-          onClick={handleExportCSV}
-          className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg transition-colors flex items-center justify-center gap-1.5 self-start sm:self-auto shadow-xs cursor-pointer"
-        >
-          <Download size={14} />
-          {language === 'TH' ? 'ส่งออกรายงาน Excel' : 'Export Excel Report'}
-        </button>
-      </div>
 
-      {/* Structured Multi-Filters Bar */}
-      <div className="bg-white border text-xs text-zinc-800 p-4.5 rounded-xl shadow-xs space-y-3">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-          {/* Keyword Search */}
-          <div className="relative">
-            <Search className="absolute left-3 top-2.5 text-zinc-400" size={13} />
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="relative md:col-span-6">
+            <Search className="absolute left-3.5 top-3.5 text-zinc-400" size={13} />
             <input 
               type="text" 
               placeholder={language === 'TH' ? 'ค้นหาข้อความ/ID...' : 'Search message, ID...'}
               value={searchTerm}
               onChange={e => setSearchTerm(e.target.value)}
-              className="w-full text-xs pl-8 pr-3 py-1.5 bg-stone-50 border rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+              className="w-full h-11 text-xs pl-10 pr-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26]"
             />
           </div>
 
-          {/* Module/Category Dropdown */}
-          <div className="space-y-0.5">
+          <div className="md:col-span-2">
             <select 
               value={selectedModule}
               onChange={e => setSelectedModule(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ทุกโมดูลระบบ' : 'All Modules'}</option>
               <option value="Branch">Branch Management</option>
@@ -1632,27 +1715,27 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
             </select>
           </div>
 
-          {/* User selector Dropdown */}
-          <div className="space-y-0.5">
+          <div className="md:col-span-2">
             <select 
               value={selectedUser}
               onChange={e => setSelectedUser(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ผู้ดำเนินงานทั้งหมด' : 'All Operators'}</option>
               <option value="admin">admin (Super Admin)</option>
               <option value="central.manager">central.manager</option>
+              <option value="siam.manager">siam.manager</option>
               <option value="mega.manager">mega.manager</option>
+              <option value="korat.manager">korat.manager</option>
               <option value="system">system</option>
             </select>
           </div>
 
-          {/* Action Type Dropdown */}
-          <div className="space-y-0.5">
+          <div className="md:col-span-2">
             <select 
               value={selectedActionType}
               onChange={e => setSelectedActionType(e.target.value)}
-              className="w-full bg-stone-50 border rounded-lg p-1.5 text-xs focus:outline-none focus:border-[#8B6B4F] cursor-pointer"
+              className="w-full h-11 bg-stone-50 border border-[#dddddd] rounded-xl px-3 text-xs focus:outline-none focus:border-[#181d26] cursor-pointer"
             >
               <option value="All">{language === 'TH' ? 'ประเภทกิจกรรมทั้งหมด' : 'All Actions'}</option>
               <option value="Created">Created</option>
@@ -1669,28 +1752,6 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
             </select>
           </div>
         </div>
-
-        {/* Date Filters row */}
-        <div className="flex flex-wrap items-center gap-4 pt-1.5 border-t border-dashed">
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wide">{language === 'TH' ? 'ตั้งแต่งานวันที่:' : 'From:'}</span>
-            <input 
-              type="date" 
-              value={startDate} 
-              onChange={e => setStartDate(e.target.value)}
-              className="bg-stone-50 border p-1 rounded font-mono text-zinc-600 cursor-pointer"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-[10px] text-zinc-400 font-bold uppercase tracking-wide">{language === 'TH' ? 'จนถึงวันที่:' : 'To:'}</span>
-            <input 
-              type="date" 
-              value={endDate} 
-              onChange={e => setEndDate(e.target.value)}
-              className="bg-stone-50 border p-1 rounded font-mono text-zinc-600 cursor-pointer"
-            />
-          </div>
-        </div>
       </div>
 
       {/* Audit table rendering */}
@@ -1702,13 +1763,15 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
                 <th className="p-3 w-44">{language === 'TH' ? 'วัน/เวลา' : 'Date/Time'}</th>
                 <th className="p-3 w-48">{language === 'TH' ? 'ชื่อผู้ใช้' : 'Username'}</th>
                 <th className="p-3 w-44">{language === 'TH' ? 'บทบาท' : 'Role'}</th>
+                <th className="p-3 w-44">{language === 'TH' ? 'โมดูล' : 'Module'}</th>
                 <th className="p-3">{language === 'TH' ? 'กิจกรรม' : 'Action'}</th>
+                <th className="p-3 w-40">{language === 'TH' ? 'รหัสอ้างอิง' : 'Record ID'}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-zinc-100 font-sans">
               {filteredActivities.length === 0 ? (
                 <tr>
-                  <td colSpan={4} className="p-10 text-center text-zinc-400 text-xs">
+                  <td colSpan={6} className="p-10 text-center text-zinc-400 text-xs">
                     {language === 'TH' ? 'ไม่พบบันทึกประวัติกิจกรรมตามตัวกรอง' : 'No audit trace database records found.'}
                   </td>
                 </tr>
@@ -1733,10 +1796,12 @@ function AuditLogView({ activities = [] }: { activities: Activity[] }) {
                           {details.role}
                         </span>
                       </td>
+                      <td className="p-3 font-mono text-[10px] text-zinc-500">{details.module}</td>
                       <td className="p-3">
                         <span className="text-zinc-800 font-medium leading-relaxed block">{details.actionType}</span>
-                        <span className="text-[9px] text-zinc-450 font-mono block mt-0.5 uppercase">MODULE: {act.type}</span>
+                        <span className="text-[9px] text-zinc-450 font-mono block mt-0.5 uppercase">TYPE: {act.type}</span>
                       </td>
+                      <td className="p-3 font-mono text-[10px] text-zinc-500">{details.relatedRecordId}</td>
                     </tr>
                   );
                 })

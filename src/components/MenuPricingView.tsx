@@ -2,7 +2,7 @@ import { useState, useRef, Dispatch, SetStateAction } from 'react';
 import { CoffeeItem, Branch, AddonGroup, AddonOption, SpecialMenuMeta, SpecialMenuType } from '../types';
 import {
   Plus, X, Check, Pencil, Trash2, Upload, ImageIcon, Sparkles,
-  Star, AlertCircle, GripVertical, Save, Send,
+  Star, AlertCircle, GripVertical, Save, Send, Search,
 } from 'lucide-react';
 import { useLanguage } from '../hooks/useLanguage';
 
@@ -45,6 +45,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
   const isAdmin = roleMode === 'Admin';
 
   const [tab, setTab] = useState<'All' | 'Coffee' | 'Non-Coffee' | 'Bakery' | 'Special'>('All');
+  const [searchTerm, setSearchTerm] = useState('');
   const [branchFilter, setBranchFilter] = useState('All Branches');
   const [statusFilter, setStatusFilter] = useState<'All' | 'Available' | 'Out of Stock' | 'Hidden'>('All');
   const [editing, setEditing] = useState<CoffeeItem | null>(null);
@@ -73,6 +74,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
   };
   const items = menuItems
     .filter(i => !i.archived)
+    .filter(i => !searchTerm || [i.name, i.category, i.description || ''].some(value => value.toLowerCase().includes(searchTerm.toLowerCase())))
     .filter(matchesTab)
     .filter(i => statusFilter === 'All' || i.status === statusFilter)
     .filter(i => branchFilter === 'All Branches' || isVisibleForBranch(i, branchFilter))
@@ -156,57 +158,68 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
     { k: 'Special' as const, label: t('เมนูพิเศษ', 'Special Menu') },
   ];
 
-  const inputCls = 'w-full text-xs py-2 px-3 font-sans bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]';
+  const inputCls = 'w-full text-xs py-2 px-3 font-sans bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26]';
 
   return (
     <div className="p-6 space-y-5 font-sans">
 
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-        <div>
-          <h2 className="font-bold text-lg text-[#2E2A25]">{t('จัดการเมนูและราคา', 'Menu & Pricing Management')}</h2>
-          <p className="text-xs text-zinc-500">{t('จัดการเมนู รูปภาพ ตัวเลือกเสริม ราคาแต่ละสาขา และเมนูพิเศษ', 'Manage items, images, add-ons, branch pricing & special menus')}</p>
+      <div className="bg-white p-6 rounded-2xl border border-[#dddddd] shadow-sm space-y-4">
+        <div className="flex flex-col xl:flex-row flex-wrap xl:items-center justify-between gap-4">
+          <div>
+            <h2 className="font-black text-lg text-[#181d26]">{t('จัดการเมนูและราคา', 'Menu & Pricing Management')}</h2>
+            <p className="text-xs text-zinc-500 mt-0.5">{t('จัดการเมนู รูปภาพ ตัวเลือกเสริม ราคาแต่ละสาขา และเมนูพิเศษ', 'Manage items, images, add-ons, branch pricing & special menus')}</p>
+          </div>
+          {isAdmin && (
+            <button id="add-menu-btn" onClick={openCreate} className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl shadow-xs flex items-center gap-1.5 self-start xl:self-auto">
+              <Plus size={14} /> {t('เพิ่มข้อมูล', 'Add Item')}
+            </button>
+          )}
         </div>
-        {isAdmin && (
-          <button id="add-menu-btn" onClick={openCreate} className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs flex items-center gap-1.5 self-start sm:self-auto">
-            <Plus size={14} /> {t('เพิ่มเมนู', 'Add Menu')}
-          </button>
-        )}
-      </div>
 
-      {/* Tabs */}
-      <div className="flex flex-wrap gap-2 bg-stone-100 p-1.5 rounded-xl border border-[#E6DFD9]">
-        {tabs.map(tb => (
-          <button key={tb.k} id={`menu-tab-${tb.k.toLowerCase()}`} onClick={() => setTab(tb.k)}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg transition-all flex items-center gap-1.5 ${tab === tb.k ? 'bg-[#8B6B4F] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}>
-            {tb.k === 'Special' && <Sparkles size={12} />}{tb.label}
-          </button>
-        ))}
-      </div>
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className="relative md:col-span-6">
+            <Search size={14} className="absolute left-3.5 top-3.5 text-zinc-400" />
+            <input
+              value={searchTerm}
+              onChange={e => setSearchTerm(e.target.value)}
+              placeholder={t('ค้นหาเมนู...', 'Search menu...')}
+              className="w-full h-11 text-xs pl-10 pr-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26]"
+            />
+          </div>
+          <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="md:col-span-3 h-11 text-xs font-semibold px-3 bg-stone-50 border border-[#dddddd] rounded-xl text-zinc-600 cursor-pointer focus:outline-none focus:border-[#181d26]">
+            <option value="All Branches">{t('ทุกสาขา', 'All Branches')}</option>
+            {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
+          </select>
+          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className="md:col-span-3 h-11 text-xs font-semibold px-3 bg-stone-50 border border-[#dddddd] rounded-xl text-zinc-600 cursor-pointer focus:outline-none focus:border-[#181d26]">
+            <option value="All">{t('ทุกสถานะ', 'All Status')}</option>
+            <option value="Available">{t('พร้อมขาย', 'Ready to Sell')}</option>
+            <option value="Out of Stock">{t('ไม่พร้อมขาย', 'Not Ready to Sell')}</option>
+            <option value="Hidden">{t('ซ่อน', 'Hidden')}</option>
+          </select>
+        </div>
 
-      {/* Filters */}
-      <div className="flex flex-wrap items-center gap-2">
-        <select value={branchFilter} onChange={e => setBranchFilter(e.target.value)} className="text-[11px] font-semibold py-1.5 px-2.5 bg-white border border-[#E6DFD9] rounded-lg text-zinc-600 cursor-pointer">
-          <option value="All Branches">{t('ทุกสาขา', 'All Branches')}</option>
-          {BRANCHES.map(b => <option key={b} value={b}>{b}</option>)}
-        </select>
-        <select value={statusFilter} onChange={e => setStatusFilter(e.target.value as typeof statusFilter)} className="text-[11px] font-semibold py-1.5 px-2.5 bg-white border border-[#E6DFD9] rounded-lg text-zinc-600 cursor-pointer">
-          <option value="All">{t('ทุกสถานะ', 'All Status')}</option>
-          <option value="Available">{t('พร้อมขาย', 'Ready to Sell')}</option>
-          <option value="Out of Stock">{t('ไม่พร้อมขาย', 'Not Ready to Sell')}</option>
-          <option value="Hidden">{t('ซ่อน', 'Hidden')}</option>
-        </select>
-        <span className="text-[10px] font-mono text-zinc-400 ml-auto uppercase tracking-wider">{items.length} {t('เมนู', 'items')}</span>
+        <div className="flex flex-wrap items-center gap-2">
+          {tabs.map(tb => {
+            const active = tab === tb.k;
+            return (
+              <button key={tb.k} id={`menu-tab-${tb.k.toLowerCase()}`} onClick={() => setTab(tb.k)}
+                className={`h-9 px-3 text-xs font-bold rounded-xl transition-all flex items-center gap-1.5 ${active ? 'bg-[#181d26] text-white shadow-xs' : 'bg-stone-50 border border-[#dddddd] text-zinc-600 hover:bg-stone-100'}`}>
+                {tb.k === 'Special' && <Sparkles size={12} />}{tb.label}
+              </button>
+            );
+          })}
+          <span className="text-[10px] font-mono text-zinc-400 ml-auto uppercase tracking-wider">{items.length} {t('เมนู', 'items')}</span>
+        </div>
       </div>
 
       {/* Menu cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
         {items.length === 0 ? (
-          <div className="col-span-full p-12 text-center bg-white border border-dashed border-[#E6DFD9] rounded-2xl text-zinc-400 text-sm">{t('ไม่พบเมนู', 'No menu items found.')}</div>
+          <div className="col-span-full p-12 text-center bg-white border border-dashed border-[#dddddd] rounded-2xl text-zinc-400 text-sm">{t('ไม่พบเมนู', 'No menu items found.')}</div>
         ) : items.map(item => (
-          <div key={item.id} id={`menu-card-${item.id}`} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col ${!isReadyToSell(item) ? 'opacity-70' : ''} border-[#E6DFD9]`}>
+          <div key={item.id} id={`menu-card-${item.id}`} className={`bg-white border rounded-2xl shadow-xs overflow-hidden flex flex-col ${!isReadyToSell(item) ? 'opacity-70' : ''} border-[#dddddd]`}>
             {/* Cover */}
-            <div className="h-28 bg-[#FDF1E6] flex items-center justify-center text-5xl relative overflow-hidden">
+            <div className="h-28 bg-[#f8fafc] flex items-center justify-center text-5xl relative overflow-hidden">
               {item.coverImage ? <img src={item.coverImage} alt={item.name} className="w-full h-full object-cover" /> : <span>{item.image}</span>}
               {item.special && <span className="absolute top-2 left-2 text-[9px] font-bold px-2 py-0.5 rounded-full bg-rose-500 text-white flex items-center gap-1"><Sparkles size={9} />{t('เมนูพิเศษ', 'Limited Time')}</span>}
               <span className={`absolute top-2 right-2 text-[9px] font-bold px-2 py-0.5 rounded-full ${availabilityStyle(item.status)}`}>{availabilityLabel(item.status)}</span>
@@ -217,7 +230,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                   <h3 className="font-bold text-sm text-zinc-900 truncate">{item.name}</h3>
                   <p className="text-[10px] text-zinc-400">{catLabel(item.category)}</p>
                 </div>
-                <span className="font-mono font-black text-sm text-[#8B6B4F] shrink-0">{formatCurrency(item.price)}</span>
+                <span className="font-mono font-black text-sm text-[#181d26] shrink-0">{formatCurrency(item.price)}</span>
               </div>
               {item.description && <p className="text-[11px] text-zinc-500 mt-1 line-clamp-2">{item.description}</p>}
               <div className="flex items-center gap-2 mt-2 text-[10px] text-zinc-400">
@@ -233,8 +246,8 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
 
               {/* Actions — Edit (primary) + Delete (secondary) only */}
               {isAdmin && (
-                <div className="mt-3 pt-3 border-t border-[#E6DFD9] flex items-center gap-1.5">
-                  <button id={`edit-menu-${item.id}`} onClick={() => openEdit(item)} className="flex-1 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5"><Pencil size={13} /> {t('แก้ไขเมนู', 'Edit Menu')}</button>
+                <div className="mt-3 pt-3 border-t border-[#dddddd] flex items-center gap-1.5">
+                  <button id={`edit-menu-${item.id}`} onClick={() => openEdit(item)} className="flex-1 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-[11px] font-bold rounded-lg flex items-center justify-center gap-1.5"><Pencil size={13} /> {t('แก้ไขเมนู', 'Edit Menu')}</button>
                   <button title={t('ลบ', 'Delete')} onClick={() => remove(item)} className="p-2 border border-red-200 hover:bg-red-50 text-red-500 rounded-lg"><Trash2 size={14} /></button>
                 </div>
               )}
@@ -247,9 +260,9 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
       {editing && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={close}>
           <div className="w-full max-w-lg h-full bg-stone-50 shadow-2xl flex flex-col animate-fade-in" onClick={e => e.stopPropagation()}>
-            <div className="p-4 bg-white border-b border-[#E6DFD9] flex items-center justify-between shrink-0">
+            <div className="p-4 bg-white border-b border-[#dddddd] flex items-center justify-between shrink-0">
               <div className="flex items-center gap-2">
-                <Pencil size={16} className="text-[#8B6B4F]" />
+                <Pencil size={16} className="text-[#181d26]" />
                 <div><h3 className="font-bold text-sm text-zinc-800">{isNew ? t('เพิ่มเมนูใหม่', 'Add Menu') : t('แก้ไขเมนู', 'Edit Menu')}</h3>
                   <p className="text-[11px] text-zinc-400">{editing.name || t('เมนูใหม่', 'New item')}</p></div>
               </div>
@@ -260,12 +273,12 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
 
               {/* Product image */}
               <section className="space-y-2">
-                <h4 className="font-bold text-xs text-[#2E2A25] flex items-center gap-1.5"><ImageIcon size={13} className="text-[#8B6B4F]" />{t('รูปภาพสินค้า', 'Product Image')}</h4>
+                <h4 className="font-bold text-xs text-[#181d26] flex items-center gap-1.5"><ImageIcon size={13} className="text-[#181d26]" />{t('รูปภาพสินค้า', 'Product Image')}</h4>
                 <div
                   onDragOver={e => { e.preventDefault(); setDragOver(true); }}
                   onDragLeave={() => setDragOver(false)}
                   onDrop={e => { e.preventDefault(); setDragOver(false); if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]); }}
-                  className={`relative border-2 border-dashed rounded-xl h-40 flex flex-col items-center justify-center text-center transition-all ${dragOver ? 'border-[#8B6B4F] bg-[#FDF1E6]/50' : 'border-[#E6DFD9] bg-white'}`}
+                  className={`relative border-2 border-dashed rounded-xl h-40 flex flex-col items-center justify-center text-center transition-all ${dragOver ? 'border-[#181d26] bg-[#f8fafc]/50' : 'border-[#dddddd] bg-white'}`}
                 >
                   {editing.coverImage ? (
                     <>
@@ -278,8 +291,8 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                   ) : (
                     <>
                       <div className="text-3xl mb-1">{editing.image || '🖼️'}</div>
-                      <Upload size={18} className="text-[#8B6B4F]" />
-                      <p className="text-[11px] font-semibold text-zinc-600 mt-1">{t('ลากรูปมาวาง หรือ', 'Drag & drop or')} <button onClick={() => fileRef.current?.click()} className="text-[#8B6B4F] underline">{t('เลือกไฟล์', 'browse')}</button></p>
+                      <Upload size={18} className="text-[#181d26]" />
+                      <p className="text-[11px] font-semibold text-zinc-600 mt-1">{t('ลากรูปมาวาง หรือ', 'Drag & drop or')} <button onClick={() => fileRef.current?.click()} className="text-[#181d26] underline">{t('เลือกไฟล์', 'browse')}</button></p>
                       <p className="text-[9px] text-zinc-400 mt-0.5">JPG / PNG / WEBP · 1:1 · ≤ 5MB</p>
                     </>
                   )}
@@ -291,7 +304,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
 
               {/* Basic detail */}
               <section className="space-y-2">
-                <h4 className="font-bold text-xs text-[#2E2A25]">{t('รายละเอียดเมนู', 'Menu Detail')}</h4>
+                <h4 className="font-bold text-xs text-[#181d26]">{t('รายละเอียดเมนู', 'Menu Detail')}</h4>
                 <label className="block"><span className="text-[10px] text-zinc-500">{t('ชื่อเมนู', 'Menu Name')} *</span>
                   <input className={inputCls} value={editing.name} onChange={e => setField('name', e.target.value)} /></label>
                 <div className="grid grid-cols-2 gap-2">
@@ -322,22 +335,22 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
               {/* Customization / add-ons */}
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-[#2E2A25]">{t('ตัวเลือกเสริม / ปรับแต่ง', 'Customization / Add-ons')}</h4>
+                  <h4 className="font-bold text-xs text-[#181d26]">{t('ตัวเลือกเสริม / ปรับแต่ง', 'Customization / Add-ons')}</h4>
                   <div className="flex gap-1.5">
-                    <button onClick={usePresets} className="text-[10px] font-bold text-[#8B6B4F] hover:underline">{t('+ ชุดเริ่มต้น', '+ Presets')}</button>
-                    <button onClick={addGroup} className="text-[10px] font-bold text-[#8B6B4F] hover:underline">{t('+ เพิ่มกลุ่ม', '+ Add Group')}</button>
+                    <button onClick={usePresets} className="text-[10px] font-bold text-[#181d26] hover:underline">{t('+ ชุดเริ่มต้น', '+ Presets')}</button>
+                    <button onClick={addGroup} className="text-[10px] font-bold text-[#181d26] hover:underline">{t('+ เพิ่มกลุ่ม', '+ Add Group')}</button>
                   </div>
                 </div>
                 {(editing.addonGroups || []).length === 0 && <p className="text-[10px] text-zinc-400">{t('ยังไม่มีตัวเลือกเสริม', 'No add-on groups yet.')}</p>}
                 {(editing.addonGroups || []).map(g => (
-                  <div key={g.id} className="border border-[#E6DFD9] rounded-xl bg-white p-2.5 space-y-2">
+                  <div key={g.id} className="border border-[#dddddd] rounded-xl bg-white p-2.5 space-y-2">
                     <div className="flex items-center gap-1.5">
                       <GripVertical size={13} className="text-zinc-300 shrink-0" />
-                      <input className="flex-1 text-xs font-bold py-1 px-2 border border-[#E6DFD9] rounded" value={g.name} placeholder={t('ชื่อกลุ่ม เช่น ระดับความหวาน', 'Group name')} onChange={e => updGroup(g.id, { name: e.target.value })} />
+                      <input className="flex-1 text-xs font-bold py-1 px-2 border border-[#dddddd] rounded" value={g.name} placeholder={t('ชื่อกลุ่ม เช่น ระดับความหวาน', 'Group name')} onChange={e => updGroup(g.id, { name: e.target.value })} />
                       <button onClick={() => delGroup(g.id)} className="text-zinc-400 hover:text-red-500"><X size={14} /></button>
                     </div>
                     <div className="flex items-center gap-2 flex-wrap text-[10px]">
-                      <select className="py-1 px-1.5 border border-[#E6DFD9] rounded bg-white" value={g.type} onChange={e => updGroup(g.id, { type: e.target.value as AddonGroup['type'] })}>
+                      <select className="py-1 px-1.5 border border-[#dddddd] rounded bg-white" value={g.type} onChange={e => updGroup(g.id, { type: e.target.value as AddonGroup['type'] })}>
                         <option value="single">{t('เลือกได้ 1', 'Single Choice')}</option>
                         <option value="multiple">{t('เลือกได้หลาย', 'Multiple Choice')}</option>
                       </select>
@@ -348,15 +361,15 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                     <div className="space-y-1.5 pl-1">
                       {g.options.map(o => (
                         <div key={o.id} className="flex items-center gap-1.5">
-                          <input className="flex-1 text-[11px] py-1 px-2 border border-[#E6DFD9] rounded" value={o.name} placeholder={t('ชื่อตัวเลือก', 'Option')} onChange={e => updOption(g.id, o.id, { name: e.target.value })} />
+                          <input className="flex-1 text-[11px] py-1 px-2 border border-[#dddddd] rounded" value={o.name} placeholder={t('ชื่อตัวเลือก', 'Option')} onChange={e => updOption(g.id, o.id, { name: e.target.value })} />
                           <div className="flex items-center gap-0.5"><span className="text-[10px] text-zinc-400">+฿</span>
-                            <input type="number" className="w-14 text-[11px] py-1 px-1.5 border border-[#E6DFD9] rounded font-mono" value={o.price} onChange={e => updOption(g.id, o.id, { price: Number(e.target.value) })} /></div>
+                            <input type="number" className="w-14 text-[11px] py-1 px-1.5 border border-[#dddddd] rounded font-mono" value={o.price} onChange={e => updOption(g.id, o.id, { price: Number(e.target.value) })} /></div>
                           <button title={t('ค่าเริ่มต้น', 'Default')} onClick={() => updOption(g.id, o.id, { isDefault: !o.isDefault })} className={`p-1 rounded ${o.isDefault ? 'text-amber-500' : 'text-zinc-300'}`}><Star size={13} fill={o.isDefault ? 'currentColor' : 'none'} /></button>
                           <button title={o.enabled ? t('ปิด', 'Disable') : t('เปิด', 'Enable')} onClick={() => updOption(g.id, o.id, { enabled: !o.enabled })} className={`p-1 rounded ${o.enabled ? 'text-emerald-600' : 'text-zinc-300'}`}><Check size={13} /></button>
                           <button onClick={() => delOption(g.id, o.id)} className="text-zinc-400 hover:text-red-500"><X size={13} /></button>
                         </div>
                       ))}
-                      <button onClick={() => addOption(g.id)} className="text-[10px] font-bold text-[#8B6B4F] hover:underline">{t('+ เพิ่มตัวเลือก', '+ Add Option')}</button>
+                      <button onClick={() => addOption(g.id)} className="text-[10px] font-bold text-[#181d26] hover:underline">{t('+ เพิ่มตัวเลือก', '+ Add Option')}</button>
                     </div>
                   </div>
                 ))}
@@ -365,8 +378,8 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
               {/* Branch-specific settings */}
               {!editing.special && (
                 <section className="space-y-2">
-                  <h4 className="font-bold text-xs text-[#2E2A25]">{t('ตั้งค่าราคา/สถานะแยกสาขา', 'Branch-specific Price / Status Settings')}</h4>
-                  <div className="border border-[#E6DFD9] rounded-xl bg-white divide-y divide-zinc-100">
+                  <h4 className="font-bold text-xs text-[#181d26]">{t('ตั้งค่าราคา/สถานะแยกสาขา', 'Branch-specific Price / Status Settings')}</h4>
+                  <div className="border border-[#dddddd] rounded-xl bg-white divide-y divide-zinc-100">
                     {BRANCHES.map(b => {
                       const avail = editing.branchAvailable?.[b] ?? true;
                       const price = editing.branchPrices?.[b];
@@ -375,7 +388,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                           <button onClick={() => setField('branchAvailable', { ...editing.branchAvailable, [b]: !avail })} className={`text-[9px] font-bold px-2 py-0.5 rounded-full shrink-0 ${avail ? 'bg-emerald-50 text-emerald-700' : 'bg-zinc-100 text-zinc-400'}`}>{avail ? t('ขาย', 'On') : t('ปิด', 'Off')}</button>
                           <span className="flex-1 text-[11px] font-semibold text-zinc-700 truncate">{b}</span>
                           <div className="flex items-center gap-0.5"><span className="text-[10px] text-zinc-400">฿</span>
-                            <input type="number" className="w-16 text-[11px] py-1 px-1.5 border border-[#E6DFD9] rounded font-mono" value={price ?? ''} placeholder={String(editing.price)} onChange={e => setField('branchPrices', { ...editing.branchPrices, [b]: e.target.value === '' ? undefined as unknown as number : Number(e.target.value) })} /></div>
+                            <input type="number" className="w-16 text-[11px] py-1 px-1.5 border border-[#dddddd] rounded font-mono" value={price ?? ''} placeholder={String(editing.price)} onChange={e => setField('branchPrices', { ...editing.branchPrices, [b]: e.target.value === '' ? undefined as unknown as number : Number(e.target.value) })} /></div>
                         </div>
                       );
                     })}
@@ -386,7 +399,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
               {/* Special menu */}
               <section className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <h4 className="font-bold text-xs text-[#2E2A25] flex items-center gap-1.5"><Sparkles size={13} className="text-rose-500" />{t('เมนูพิเศษ', 'Special Menu')}</h4>
+                  <h4 className="font-bold text-xs text-[#181d26] flex items-center gap-1.5"><Sparkles size={13} className="text-rose-500" />{t('เมนูพิเศษ', 'Special Menu')}</h4>
                   <label className="flex items-center gap-1.5 text-[10px] font-bold text-zinc-600"><input type="checkbox" checked={!!editing.special} onChange={toggleSpecial} />{t('ตั้งเป็นเมนูพิเศษ', 'Mark as Special')}</label>
                 </div>
                 {editing.special && (
@@ -414,7 +427,7 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
                         {BRANCHES.map(branch => {
                           const active = specialAvailableBranches(editing).includes(branch);
                           return (
-                            <label key={branch} className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px] font-semibold ${active ? 'bg-white border-[#8B6B4F] text-zinc-800' : 'bg-white/60 border-rose-100 text-zinc-500'}`}>
+                            <label key={branch} className={`flex items-center gap-2 rounded-lg border px-2.5 py-2 text-[11px] font-semibold ${active ? 'bg-white border-[#181d26] text-zinc-800' : 'bg-white/60 border-rose-100 text-zinc-500'}`}>
                               <input type="checkbox" checked={active} onChange={() => toggleSpecialBranch(branch)} />
                               {branch}
                             </label>
@@ -440,9 +453,9 @@ export default function MenuPricingView({ menuItems, setMenuItems, roleMode }: M
               )}
             </div>
 
-            <div className="p-4 bg-white border-t border-[#E6DFD9] shrink-0 flex items-center gap-2">
-              <button onClick={saveDraft} className="flex-1 py-2.5 border border-[#E6DFD9] hover:bg-stone-50 text-zinc-600 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"><Save size={13} /> {t('บันทึกแบบร่าง', 'Save Draft')}</button>
-              <button onClick={publish} className="flex-1 py-2.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"><Send size={13} /> {t('เผยแพร่ไปยังแอป', 'Publish to App')}</button>
+            <div className="p-4 bg-white border-t border-[#dddddd] shrink-0 flex items-center gap-2">
+              <button onClick={saveDraft} className="flex-1 py-2.5 border border-[#dddddd] hover:bg-stone-50 text-zinc-600 text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"><Save size={13} /> {t('บันทึกแบบร่าง', 'Save Draft')}</button>
+              <button onClick={publish} className="flex-1 py-2.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"><Send size={13} /> {t('เผยแพร่ไปยังแอป', 'Publish to App')}</button>
             </div>
           </div>
         </div>

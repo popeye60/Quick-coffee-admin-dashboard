@@ -3,7 +3,7 @@ export const en = {
     dashboard: "Dashboard",
     orders: "Order Management",
     payment_verification: "Payment Verification",
-    stock_management: "Daily Stock Count",
+    stock_management: "Stock Check",
     branches: "Branch Management",
     menu_pricing: "Menu & Pricing",
     warehouse: "Central Warehouse",

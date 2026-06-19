@@ -35,6 +35,7 @@ interface OrdersViewProps {
 
 // Minutes a customer has to pay before the order is auto-cancelled
 const PAYMENT_TIMEOUT_MIN = 10;
+const DEMO_TODAY = '2026-05-25';
 
 const CANCELLATION_REASONS: CancellationReason[] = [
   'Ingredient Out of Stock',
@@ -80,6 +81,8 @@ export default function OrdersView({
 }: OrdersViewProps) {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('All Statuses');
+  const [startDate, setStartDate] = useState(DEMO_TODAY);
+  const [endDate, setEndDate] = useState(DEMO_TODAY);
   const [queueTab, setQueueTab] = useState<'all' | 'Preparing' | 'Ready For Pickup' | 'Completed'>('all');
   const [exportSuccess, setExportSuccess] = useState(false);
   const [timelineOpen, setTimelineOpen] = useState(false);
@@ -112,12 +115,25 @@ export default function OrdersView({
     o.paymentStatus === 'Paid' &&
     ['Paid', 'Preparing', 'Ready For Pickup', 'Queue Called', 'Completed'].includes(o.status);
   const workflowOrders = roleMode === 'Staff' ? orders.filter(isConfirmedQueuedOrder) : orders;
-
-  const filteredOrders = workflowOrders.filter((order) => {
+  const parseOrderDate = (orderTime: string) => {
+    const months: Record<string, string> = {
+      Jan: '01', Feb: '02', Mar: '03', Apr: '04', May: '05', Jun: '06',
+      Jul: '07', Aug: '08', Sep: '09', Oct: '10', Nov: '11', Dec: '12'
+    };
+    const match = orderTime.match(/^(\d{1,2})\s+(\w+)\s+(\d{4})/);
+    if (!match) return '';
+    return `${match[3]}-${months[match[2]] ?? '00'}-${match[1].padStart(2, '0')}`;
+  };
+  const formatDateLabel = (iso: string) => {
+    if (!iso) return '-';
+    const [year, month, day] = iso.split('-');
+    return `${day}/${month}/${year}`;
+  };
+  const baseFilteredOrders = workflowOrders.filter((order) => {
     if (activeBranch !== 'All Branches' && order.branch !== activeBranch) return false;
-    if (statusFilter === 'Auto Cancelled' && !isSystemCancelled(order)) return false;
-    if (statusFilter === 'Cancelled by Staff' && !isStaffCancelled(order)) return false;
-    if (!['All Statuses', 'Auto Cancelled', 'Cancelled by Staff'].includes(statusFilter) && order.status !== statusFilter) return false;
+    const orderDate = parseOrderDate(order.orderTime);
+    if (startDate && orderDate && orderDate < startDate) return false;
+    if (endDate && orderDate && orderDate > endDate) return false;
     const query = searchTerm.toLowerCase();
     if (
       query &&
@@ -126,6 +142,12 @@ export default function OrdersView({
       !order.customerName.toLowerCase().includes(query) &&
       !order.customerPhone.toLowerCase().includes(query)
     ) return false;
+    return true;
+  });
+  const filteredOrders = baseFilteredOrders.filter((order) => {
+    if (statusFilter === 'Auto Cancelled' && !isSystemCancelled(order)) return false;
+    if (statusFilter === 'Cancelled by Staff' && !isStaffCancelled(order)) return false;
+    if (!['All Statuses', 'Auto Cancelled', 'Cancelled by Staff'].includes(statusFilter) && order.status !== statusFilter) return false;
     return true;
   });
 
@@ -208,7 +230,7 @@ export default function OrdersView({
   const nextQueueAction = (o: Order): { label: string; to: OrderStatus; cls: string } | null => {
     if (o.status === 'Paid') return { label: language === 'TH' ? 'เริ่มเตรียม' : 'Start Preparing', to: 'Preparing', cls: 'bg-sky-600 hover:bg-sky-700 text-white' };
     if (o.status === 'Preparing') return { label: language === 'TH' ? 'พร้อมเสิร์ฟ' : 'Mark Ready', to: 'Ready For Pickup', cls: 'bg-green-600 hover:bg-green-700 text-white' };
-    if (o.status === 'Ready For Pickup') return { label: language === 'TH' ? 'เรียกคิว' : 'Call Queue', to: 'Queue Called', cls: 'bg-[#8B6B4F] hover:bg-[#70533C] text-white' };
+    if (o.status === 'Ready For Pickup') return { label: language === 'TH' ? 'เรียกคิว' : 'Call Queue', to: 'Queue Called', cls: 'bg-[#181d26] hover:bg-[#0d1218] text-white' };
     return null;
   };
   const canStaffCancel = (o: Order) =>
@@ -232,8 +254,8 @@ export default function OrdersView({
     {
       title: language === 'TH' ? 'คิวที่ยืนยันแล้วทั้งหมด' : 'Total Active Queued Orders',
       value: opActiveQueued,
-      icon: <CheckCircle size={18} className="text-[#8B6B4F]" />,
-      bg: 'bg-[#FDF1E6]/40 border-amber-100',
+      icon: <CheckCircle size={18} className="text-[#181d26]" />,
+      bg: 'bg-[#f8fafc]/40 border-amber-100',
     },
     {
       title: language === 'TH' ? 'กำลังเตรียมเครื่องดื่ม' : 'Preparing Orders',
@@ -256,6 +278,35 @@ export default function OrdersView({
   ];
 
   const handleCSVExport = () => {
+    const headers = ['Queue Number', 'Order Number', 'Customer', 'Phone', 'Branch', 'Status', 'Payment Status', 'Queue Status', 'Total Amount', 'Order Time', 'Cancellation Reason'];
+    const rows = filteredOrders.map(order => {
+      const derived = deriveStatus(order);
+      const queueNo = isStaffCancelled(order) ? staffCancellationQueue(order) : order.queueNo;
+      const cancellation = order.cancellationReason
+        ? (order.cancellationReason === 'Other' && order.cancellationNote ? order.cancellationNote : cancellationReasonLabel(order.cancellationReason))
+        : '';
+      return [
+        queueNo ? `Q-${queueNo}` : '-',
+        order.id,
+        order.customerName,
+        order.customerPhone,
+        order.branch,
+        derived.label,
+        derived.payment,
+        derived.queue,
+        order.amount,
+        order.orderTime,
+        cancellation,
+      ].map(value => `"${String(value).replace(/"/g, '""')}"`).join(',');
+    });
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `quick_coffee_orders_${startDate || 'all'}_${endDate || 'all'}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
     setExportSuccess(true);
     setTimeout(() => setExportSuccess(false), 2500);
   };
@@ -277,7 +328,6 @@ export default function OrdersView({
     'Pending Payment': 'Waiting for Payment',
     'Ready For Pickup': 'Ready for Pickup',
   };
-
   const timelineLabelsTh: Record<string, string> = {
     'Pending Payment': 'รอชำระเงิน',
     'Paid': 'ยืนยันการชำระเงินแล้ว',
@@ -430,7 +480,7 @@ export default function OrdersView({
           <button
             id="workflow-start-brewing-btn"
             onClick={() => updateOrderStatus(order.id, 'Preparing')}
-            className="w-full py-2.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+            className="w-full py-2.5 bg-[#181d26] hover:bg-[#0d1218] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
           >
             {language === 'TH' ? '☕️ เริ่มบด/ชงกาแฟ' : '☕️ Start Brewing'} <ArrowRight size={13} />
           </button>
@@ -448,7 +498,7 @@ export default function OrdersView({
           <button
             id="workflow-call-queue-btn"
             onClick={() => updateOrderStatus(order.id, 'Queue Called')}
-            className="w-full py-3 bg-[#8B6B4F] hover:bg-[#70533C] text-white font-sans text-sm font-black rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+            className="w-full py-3 bg-[#181d26] hover:bg-[#0d1218] text-white font-sans text-sm font-black rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
           >
             {language === 'TH' ? 'เรียกคิว' : 'Call Queue'} <ArrowRight size={14} />
           </button>
@@ -465,7 +515,7 @@ export default function OrdersView({
             <button
               id="workflow-complete-handover-btn"
               onClick={() => updateOrderStatus(order.id, 'Completed')}
-              className="py-2.5 bg-[#A8BB9A] hover:bg-[#8CA27D] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
+              className="py-2.5 bg-[#a8d8c4] hover:bg-[#006400] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-2 cursor-pointer transition-all"
             >
               {language === 'TH' ? 'ส่งมอบเสร็จสิ้น' : 'Complete Handover'} <ArrowRight size={13} />
             </button>
@@ -498,20 +548,20 @@ export default function OrdersView({
 
   return (
     <div className="p-6 relative">
-      <div className="mb-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      <div className="mb-5 flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-3">
+        {roleMode === 'Staff' && (
         <div>
-          <h2 className="font-sans font-black text-lg text-[#2E2A25]">{language === 'TH' ? 'จัดการออเดอร์' : 'Order Management'}</h2>
+          <h2 className="font-sans font-black text-lg text-[#181d26]">{language === 'TH' ? 'จัดการออเดอร์' : 'Order Management'}</h2>
           <p className="text-xs text-zinc-500">
-            {roleMode === 'Staff'
-              ? (language === 'TH' ? 'จัดการคิวที่ชำระเงินแล้ว และเรียกคิวเพื่อรับสินค้า' : 'Manage paid queued orders and call queues for pickup.')
-              : (language === 'TH' ? 'ตรวจสอบออเดอร์ การชำระเงิน และประวัติการยกเลิก' : 'Monitor orders, payment information, and cancellation audit history.')}
+            {language === 'TH' ? 'จัดการคิวที่ชำระเงินแล้ว และเรียกคิวเพื่อรับสินค้า' : 'Manage paid queued orders and call queues for pickup.'}
           </p>
         </div>
+        )}
         {roleMode === 'Staff' && (
           <button
             id="open-queue-display-screen-btn"
             onClick={openQueueDisplay}
-            className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 self-start sm:self-auto"
+            className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs flex items-center justify-center gap-1.5 self-start sm:self-auto"
           >
             {language === 'TH' ? 'เปิดหน้าจอคิว' : 'Open Queue Screen'}
           </button>
@@ -521,7 +571,7 @@ export default function OrdersView({
       {/* ── Operational Status — Staff only (operators); Admin is read-only review ── */}
       {roleMode === 'Staff' && (
         <div className="mb-6 space-y-1.5">
-          <h4 className="font-sans font-bold text-[10px] text-[#8B6B4F] uppercase tracking-wider">
+          <h4 className="font-sans font-bold text-[10px] text-[#181d26] uppercase tracking-wider">
             {language === 'TH' ? 'สถานะการดำเนินงาน' : 'Operational Status'}
           </h4>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3.5">
@@ -529,39 +579,60 @@ export default function OrdersView({
               <div key={card.title} className={`p-3.5 rounded-xl border ${card.bg} bg-white flex items-center justify-between shadow-xs`}>
                 <div>
                   <span className="font-sans text-[10px] font-bold text-zinc-500 tracking-tight block">{card.title}</span>
-                  <h3 className="font-sans font-black text-lg text-[#2E2A25] tracking-tight mt-1">{card.value}</h3>
+                  <h3 className="font-sans font-black text-lg text-[#181d26] tracking-tight mt-1">{card.value}</h3>
                 </div>
-                <div className="p-1 rounded bg-[#FDF1E6]/30 border border-[#E6DFD9]/40 shrink-0">{card.icon}</div>
+                <div className="p-1 rounded bg-[#f8fafc]/30 border border-[#dddddd]/40 shrink-0">{card.icon}</div>
               </div>
             ))}
           </div>
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row gap-6 items-start animate-fade-in">
+      {/* 2-column layout: left = filter + table, right = sticky detail panel.
+          No flex-wrap here — the right column must never wrap below the table on desktop. */}
+      <div className="flex flex-col lg:flex-row lg:flex-nowrap gap-6 items-start animate-fade-in">
 
-        {/* ── Orders Table ─────────────────────────────────────────────────── */}
-        <div className={`w-full ${selectedOrder ? 'lg:w-[65%]' : 'w-full'} space-y-6`}>
+        {/* ── Left column: Filter card + Orders Table ──────────────────────── */}
+        <div className={`w-full min-w-0 ${selectedOrder ? 'lg:w-[65%]' : 'w-full'} space-y-6`}>
 
           {/* Filter & Search — Admin only */}
           {roleMode === 'Admin' && (
-            <div className="bg-[#FFFFFF] p-6 rounded-xl border border-[#E6DFD9] space-y-3 shadow-xs">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                <h3 className="font-sans font-bold text-sm text-[#2E2A25]">
-                  {language === 'TH' ? 'ค้นหาและควบคุมคิวเครื่องดื่ม' : 'Filter & Search Deliveries'}
-                </h3>
-                <button
-                  id="export-csv-btn"
-                  onClick={handleCSVExport}
-                  className="px-3.5 py-1.5 border border-[#E6DFD9] bg-stone-50 hover:bg-stone-100/50 rounded-lg text-xs font-semibold text-zinc-600 transition-all font-sans flex items-center justify-center gap-1.5 self-start sm:self-auto"
-                >
-                  <FileText size={13} className="text-[#8B6B4F]" />
-                  {exportSuccess ? (language === 'TH' ? 'ส่งออกแล้ว ✅' : 'CSV Exported ✅') : (language === 'TH' ? 'ส่งออกไฟล์ Excel / CSV' : 'Export Excel / CSV')}
-                </button>
+            <div className="bg-white p-6 rounded-2xl border border-[#dddddd] space-y-4 shadow-sm">
+              <div className="flex flex-col xl:flex-row flex-wrap xl:items-center justify-between gap-4">
+                <div>
+                  <h2 className="font-sans font-black text-lg text-[#181d26]">{language === 'TH' ? 'จัดการออเดอร์' : 'Order Management'}</h2>
+                  <p className="text-xs text-zinc-500 mt-0.5">
+                    {language === 'TH' ? 'ตรวจสอบออเดอร์ การชำระเงิน และประวัติการยกเลิก' : 'Monitor orders, payment information, and cancellation audit history.'}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <input
+                    id="order-start-date-filter"
+                    type="date"
+                    value={startDate}
+                    onChange={(e) => setStartDate(e.target.value)}
+                    className="h-11 text-xs px-3 font-sans bg-white border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600"
+                  />
+                  <input
+                    id="order-end-date-filter"
+                    type="date"
+                    value={endDate}
+                    onChange={(e) => setEndDate(e.target.value)}
+                    className="h-11 text-xs px-3 font-sans bg-white border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600"
+                  />
+                  <button
+                    id="export-csv-btn"
+                    onClick={handleCSVExport}
+                    className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] rounded-xl text-xs font-bold text-white transition-all font-sans flex items-center justify-center gap-1.5"
+                  >
+                    <FileText size={14} />
+                    {exportSuccess ? (language === 'TH' ? 'ส่งออกแล้ว' : 'Exported') : (language === 'TH' ? 'ส่งออก Excel' : 'Export Excel')}
+                  </button>
+                </div>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-zinc-400">
+              <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+                <div className="relative md:col-span-5">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3.5 text-zinc-400">
                     <Search size={14} />
                   </span>
                   <input
@@ -570,14 +641,14 @@ export default function OrdersView({
                     placeholder={language === 'TH' ? 'ค้นหารหัส, ชื่อลูกค้า, เบอร์โทร...' : 'Query Code, Name, Phone...'}
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full text-xs py-2 pl-9 pr-3 font-sans bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]"
+                    className="w-full h-11 text-xs pl-10 pr-3 font-sans bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26]"
                   />
                 </div>
                 <select
                   id="order-status-filter-dropdown"
                   value={statusFilter}
                   onChange={(e) => setStatusFilter(e.target.value)}
-                  className="w-full text-xs py-2 px-3 font-sans bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] text-zinc-600 cursor-pointer"
+                  className="md:col-span-3 w-full h-11 text-xs px-3 font-sans bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600 cursor-pointer"
                 >
                   {statusOptionsEn.map(st => (
                     <option key={st} value={st}>{language === 'TH' ? (statusOptionsTh[st] || st) : (statusOptionsLabelEn[st] || st)}</option>
@@ -587,7 +658,7 @@ export default function OrdersView({
                   id="order-branch-filter-dropdown"
                   value={selectedBranch}
                   onChange={(e) => setSelectedBranch(e.target.value as Branch)}
-                  className="w-full text-xs py-2 px-3 font-sans bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] text-zinc-600 cursor-pointer"
+                  className="md:col-span-4 w-full h-11 text-xs px-3 font-sans bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600 cursor-pointer"
                 >
                   <option value="All Branches">{language === 'TH' ? 'ทุกสาขา (รวมทั้งหมด)' : 'All Branches (Global)'}</option>
                   <option value="Central Plaza">Central Plaza</option>
@@ -601,19 +672,20 @@ export default function OrdersView({
 
           {/* Summary count bar — Admin only */}
           {roleMode === 'Admin' && (
-            <div className="flex items-center justify-between font-sans text-xs text-zinc-500 bg-stone-50 border border-[#E6DFD9] px-3.5 py-2.5 rounded-lg">
-              <span>{language === 'TH' ? 'พบคิวออเดอร์ ' : 'Showing '}<strong className="text-zinc-700">{filteredOrders.length}</strong>{language === 'TH' ? ' รายการที่มีสิทธิ์แก้ไข' : ' order queues'}</span>
+            <div className="flex items-center justify-between font-sans text-xs text-zinc-500 bg-stone-50 border border-[#dddddd] px-3.5 py-2.5 rounded-lg">
+              <span>{language === 'TH' ? 'พบออเดอร์ ' : 'Showing '}<strong className="text-zinc-700">{filteredOrders.length}</strong>{language === 'TH' ? ' รายการ' : ' orders'}</span>
+              <span className="font-mono text-[10px]">{formatDateLabel(startDate)} - {formatDateLabel(endDate)}</span>
               <span className="font-mono text-[10px]">{language === 'TH' ? 'ยอดที่คัดสรร' : 'Filter Match Count'}</span>
             </div>
           )}
 
           {/* Admin: full data table | Staff: operational queue board */}
           {roleMode === 'Admin' ? (
-          <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
+          <div className="bg-[#FFFFFF] border border-[#dddddd] rounded-xl overflow-hidden shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-[#E6DFD9] bg-stone-50/50 h-12">
+                  <tr className="border-b border-[#dddddd] bg-stone-50/50 h-12">
                     <th className="py-3 px-4 font-sans text-[11px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'คิวที่' : 'Queue No.'}</th>
                     <th className="py-3 px-4 font-sans text-[11px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'รหัสคำสั่งซื้อ' : 'Order ID'}</th>
                     <th className="py-3 px-4 font-sans text-[11px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'ลูกค้า' : 'Customer'}</th>
@@ -637,10 +709,10 @@ export default function OrdersView({
                       <tr
                         key={order.id}
                         id={`order-row-${order.id}`}
-                        onClick={() => { setSelectedOrderId(order.id); setTimelineOpen(false); setShowCancelForm(false); setCancelReason(''); setCancelNote(''); setShowRefundForm(false); setRefundNote(''); }}
+                        onClick={() => { setSelectedOrderId(order.id); setTimelineOpen(roleMode === 'Admin'); setShowCancelForm(false); setCancelReason(''); setCancelNote(''); setShowRefundForm(false); setRefundNote(''); }}
                         className={`hover:bg-amber-50/10 cursor-pointer transition-colors h-[76px] ${isSelected ? 'bg-amber-50/30' : ''}`}
                       >
-                        <td className={`align-middle py-2 px-4 font-sans text-xs border-l-4 transition-all ${isSelected ? 'border-l-[#8B6B4F]' : 'border-l-transparent'}`}>
+                        <td className={`align-middle py-2 px-4 font-sans text-xs border-l-4 transition-all ${isSelected ? 'border-l-[#181d26]' : 'border-l-transparent'}`}>
                           {displayQueueNo
                             ? <span className="text-[10.5px] bg-amber-100 text-amber-900 px-2 py-0.5 rounded font-bold font-mono">
                                 Q-{displayQueueNo}
@@ -655,15 +727,15 @@ export default function OrdersView({
                         </td>
                         <td className="align-middle py-2 px-4 font-sans text-xs text-zinc-600 font-medium">{order.branch}</td>
                         <td className="align-middle py-2 px-4 text-center"><StatusPill order={order} /></td>
-                        <td className="align-middle py-2 px-4 font-mono text-xs font-bold text-[#8B6B4F] text-right">{formatCurrency(order.amount)}</td>
-                        <td className="align-middle py-2 px-4 font-mono text-xs text-zinc-500">{order.time}</td>
+                        <td className="align-middle py-2 px-4 font-mono text-xs font-bold text-[#181d26] text-right">{formatCurrency(order.amount)}</td>
+                        <td className="align-middle py-2 px-4 font-mono text-xs text-zinc-500">{order.orderTime}</td>
                       </tr>
                     );
                   })}
                 </tbody>
               </table>
             </div>
-            <div className="px-4 py-3.5 bg-stone-50/50 border-t border-[#E6DFD9] flex items-center justify-between text-xs text-zinc-500 font-sans">
+            <div className="px-4 py-3.5 bg-stone-50/50 border-t border-[#dddddd] flex items-center justify-between text-xs text-zinc-500 font-sans">
               <span>
                 {language === 'TH'
                   ? `แสดง 1 ถึง ${filteredOrders.length} จากทั้งหมด ${filteredOrders.length} ระเบียน`
@@ -671,7 +743,7 @@ export default function OrdersView({
               </span>
               <div className="flex gap-1.5">
                 <button className="px-2 py-1 rounded border border-zinc-200 bg-white disabled:opacity-50 text-[10px]" disabled>{language === 'TH' ? 'ก่อนหน้า' : 'Prev'}</button>
-                <button className="px-2 py-1 rounded border border-zinc-200 bg-[#8B6B4F] text-white text-[10px]">1</button>
+                <button className="px-2 py-1 rounded border border-zinc-200 bg-[#181d26] text-white text-[10px]">1</button>
                 <button className="px-2 py-1 rounded border border-zinc-200 bg-white disabled:opacity-50 text-[10px]" disabled>{language === 'TH' ? 'ถัดไป' : 'Next'}</button>
               </div>
             </div>
@@ -689,7 +761,7 @@ export default function OrdersView({
                     key={t.key}
                     id={`queue-tab-${t.key.replace(/\s+/g, '-').toLowerCase()}`}
                     onClick={() => setQueueTab(t.key as typeof queueTab)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${active ? 'bg-[#8B6B4F] text-white shadow-xs' : 'bg-white border border-[#E6DFD9] text-zinc-600 hover:bg-stone-50'}`}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold font-sans transition-all flex items-center gap-1.5 ${active ? 'bg-[#181d26] text-white shadow-xs' : 'bg-white border border-[#dddddd] text-zinc-600 hover:bg-stone-50'}`}
                   >
                     {t.label}
                     <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20' : 'bg-stone-100 text-zinc-500'}`}>{count}</span>
@@ -700,7 +772,7 @@ export default function OrdersView({
 
             {/* Queue cards */}
             {staffQueue.length === 0 ? (
-              <div className="p-12 text-center bg-white border border-dashed border-[#E6DFD9] rounded-2xl">
+              <div className="p-12 text-center bg-white border border-dashed border-[#dddddd] rounded-2xl">
                 <p className="text-sm text-zinc-400 font-sans">{language === 'TH' ? 'ไม่มีออเดอร์ที่ยืนยันและมีหมายเลขคิวในสถานะนี้' : 'No confirmed queued orders in this status'}</p>
               </div>
             ) : (
@@ -718,7 +790,7 @@ export default function OrdersView({
                       key={order.id}
                       id={`queue-card-${order.id}`}
                       onClick={() => { setSelectedOrderId(order.id); setTimelineOpen(false); setShowCancelForm(false); setShowRefundForm(false); }}
-                      className={`bg-white border border-[#E6DFD9] border-l-4 ${st.border} ${isReady ? 'bg-green-50/40' : ''} rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer p-4 flex items-center gap-4`}
+                      className={`bg-white border border-[#dddddd] border-l-4 ${st.border} ${isReady ? 'bg-green-50/40' : ''} rounded-2xl shadow-xs hover:shadow-md transition-all cursor-pointer p-4 flex items-center gap-4`}
                     >
                       {/* Big queue number — created only after payment is confirmed */}
                       <div className={`shrink-0 ${chipSize} rounded-2xl flex flex-col items-center justify-center px-1 ${st.chip}`}>
@@ -738,7 +810,7 @@ export default function OrdersView({
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-3">
                           <p className="font-sans font-bold text-sm text-zinc-800 leading-snug line-clamp-1">{itemsText}</p>
-                          <span className="font-mono font-black text-sm text-[#8B6B4F] shrink-0 whitespace-nowrap">{formatCurrency(order.amount)}</span>
+                          <span className="font-mono font-black text-sm text-[#181d26] shrink-0 whitespace-nowrap">{formatCurrency(order.amount)}</span>
                         </div>
                         <div className="flex items-center gap-2.5 mt-2 flex-wrap">
                           <span className="text-[11px] font-mono text-zinc-400">⏱ {order.time}</span>
@@ -760,7 +832,7 @@ export default function OrdersView({
                             <button
                               id={`queue-complete-${order.id}`}
                               onClick={() => updateOrderStatus(order.id, 'Completed')}
-                              className={`${ACTION_BTN} bg-[#8B6B4F] hover:bg-[#70533C] text-white`}
+                              className={`${ACTION_BTN} bg-[#181d26] hover:bg-[#0d1218] text-white`}
                             >
                               {language === 'TH' ? 'ส่งมอบเสร็จสิ้น' : 'Complete Handover'}
                             </button>
@@ -792,11 +864,11 @@ export default function OrdersView({
         {selectedOrder && (
           <div
             id="order-detail-drawer-panel"
-            className="w-full lg:w-[35%] lg:max-w-[35%] bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl self-start overflow-hidden shadow-lg shrink-0 sticky top-4 flex flex-col"
+            className="w-full lg:w-[35%] lg:max-w-[35%] bg-[#FFFFFF] border border-[#dddddd] rounded-xl self-start overflow-hidden shadow-lg shrink-0 sticky top-4 flex flex-col"
             style={{ maxHeight: 'calc(100vh - 120px)' }}
           >
             {/* S1: Header */}
-            <div className="px-4 py-3.5 bg-[#FDFBF7] border-b border-[#E6DFD9] flex items-center justify-between shrink-0">
+            <div className="px-4 py-3.5 bg-[#f8fafc] border-b border-[#dddddd] flex items-center justify-between shrink-0">
               <div>
                 <div className="flex items-center gap-1.5">
                   <span className="font-mono text-xs font-extrabold text-zinc-900">{selectedOrder.id}</span>
@@ -818,7 +890,7 @@ export default function OrdersView({
             {/* S2: Compact alert banner (failed) or queue banner (others) */}
             <div className="px-4 py-3 text-white flex items-center justify-between shrink-0 bg-amber-950">
               <div>
-                <span className="font-sans text-[9px] text-[#EAD1A8] uppercase tracking-wider block font-medium">
+                <span className="font-sans text-[9px] text-[#e0e2e6] uppercase tracking-wider block font-medium">
                   {staffCancellationQueue(selectedOrder) || selectedOrder.queueNo ? (language === 'TH' ? 'หมายเลขคิวออเดอร์' : 'Order Queue No.') : (language === 'TH' ? 'ยังไม่มีหมายเลขคิว' : 'No Queue Number')}
                 </span>
                 <span className="font-mono text-xl font-black tracking-wide leading-none">
@@ -838,8 +910,8 @@ export default function OrdersView({
 
             {/* S3: Detail exception — cancellation only before queue call */}
             {roleMode === 'Staff' && canStaffCancel(selectedOrder) && (
-              <div className="px-4 py-3 border-b border-[#E6DFD9] bg-stone-50/60 shrink-0">
-                <span className="font-mono text-[8.5px] text-[#8B6B4F] uppercase tracking-widest font-extrabold block mb-2">
+              <div className="px-4 py-3 border-b border-[#dddddd] bg-stone-50/60 shrink-0">
+                <span className="font-mono text-[8.5px] text-[#181d26] uppercase tracking-widest font-extrabold block mb-2">
                   {language === 'TH' ? 'ยกเลิกออเดอร์' : 'Cancellation'}
                 </span>
                 {showCancelForm ? (
@@ -861,10 +933,10 @@ export default function OrdersView({
 
               {/* S4 (Staff) / S1 (Admin): Items ordered — first thing staff needs to see */}
               <div className="px-4 pt-3.5 pb-3 border-b border-zinc-100 space-y-2">
-                <h4 className="font-mono text-[9px] text-[#8B6B4F] uppercase tracking-widest font-extrabold">
+                <h4 className="font-mono text-[9px] text-[#181d26] uppercase tracking-widest font-extrabold">
                   {language === 'TH' ? 'รายการที่สั่ง' : 'Ordered Items'}
                 </h4>
-                <div className="divide-y divide-zinc-100 border border-[#E6DFD9] rounded-xl overflow-hidden bg-white">
+                <div className="divide-y divide-zinc-100 border border-[#dddddd] rounded-xl overflow-hidden bg-white">
                   {selectedOrder.items.map((item, idx) => (
                     <div key={idx} className="px-3 py-2.5 flex items-start gap-2.5 text-xs font-sans">
                       <span className="text-base shrink-0 leading-tight">{item.item.image}</span>
@@ -877,7 +949,7 @@ export default function OrdersView({
                   ))}
                   <div className="px-3 py-2 bg-stone-50/70 flex justify-between items-center">
                     <span className="font-sans text-[10.5px] font-bold text-zinc-600">{language === 'TH' ? 'ยอดรวม' : 'Total'}</span>
-                    <span className="font-mono text-sm font-black text-[#8B6B4F]">{formatCurrency(selectedOrder.amount)}</span>
+                    <span className="font-mono text-sm font-black text-[#181d26]">{formatCurrency(selectedOrder.amount)}</span>
                   </div>
                 </div>
               </div>
@@ -896,7 +968,7 @@ export default function OrdersView({
 
               {/* S6: Billing summary (compact) */}
               <div className="px-4 py-3 border-b border-zinc-100 space-y-1.5">
-                <h4 className="font-mono text-[9px] text-[#8B6B4F] uppercase tracking-widest font-extrabold">
+                <h4 className="font-mono text-[9px] text-[#181d26] uppercase tracking-widest font-extrabold">
                   {language === 'TH' ? 'สรุปการชำระเงิน' : 'Payment Summary'}
                 </h4>
                 <div className="space-y-1 text-xs font-sans">
@@ -933,7 +1005,7 @@ export default function OrdersView({
                       {selectedOrder.amount < 190 ? 'WELCOME50' : (language === 'TH' ? 'ไม่มี' : 'None')}
                     </span>
                   </div>
-                  <div className="flex justify-between items-center font-bold text-zinc-800 pt-1 border-t border-[#E6DFD9]">
+                  <div className="flex justify-between items-center font-bold text-zinc-800 pt-1 border-t border-[#dddddd]">
                     <span className="text-xs">{language === 'TH' ? 'ยอดสุทธิ:' : 'Net Total:'}</span>
                     <span className="font-mono text-sm">{formatCurrency(selectedOrder.amount)}</span>
                   </div>
@@ -1039,18 +1111,18 @@ export default function OrdersView({
 
               {/* S7: Customer info — moved down, secondary reference */}
               <div className="px-4 py-3 border-b border-zinc-100 space-y-1.5">
-                <h4 className="font-mono text-[9px] text-[#8B6B4F] uppercase tracking-widest font-extrabold">
+                <h4 className="font-mono text-[9px] text-[#181d26] uppercase tracking-widest font-extrabold">
                   {language === 'TH' ? 'ข้อมูลลูกค้า' : 'Customer'}
                 </h4>
-                <div className="p-3 bg-stone-50 border border-[#E6DFD9] rounded-xl text-xs font-sans space-y-1.5">
+                <div className="p-3 bg-stone-50 border border-[#dddddd] rounded-xl text-xs font-sans space-y-1.5">
                   <p className="font-bold text-zinc-800">{selectedOrder.customerName}</p>
                   <div className="flex items-center gap-1.5 text-zinc-500">
-                    <Phone size={11} className="text-[#8B6B4F]" />
+                    <Phone size={11} className="text-[#181d26]" />
                     <span>{selectedOrder.customerPhone}</span>
                   </div>
                   {selectedOrder.customerEmail && (
                     <div className="flex items-center gap-1.5 text-zinc-500 truncate">
-                      <Mail size={11} className="text-[#8B6B4F]" />
+                      <Mail size={11} className="text-[#181d26]" />
                       <span className="truncate">{selectedOrder.customerEmail}</span>
                     </div>
                   )}
@@ -1077,7 +1149,7 @@ export default function OrdersView({
                   onClick={() => setTimelineOpen(v => !v)}
                   className="flex items-center justify-between w-full group"
                 >
-                  <span className="font-mono text-[9px] text-[#8B6B4F] uppercase tracking-widest font-extrabold">
+                  <span className="font-mono text-[9px] text-[#181d26] uppercase tracking-widest font-extrabold">
                     {language === 'TH' ? 'ประวัติสถานะออเดอร์' : 'Order Timeline'}
                   </span>
                   <span className="text-zinc-400 group-hover:text-zinc-600 transition-colors">
@@ -1101,7 +1173,7 @@ export default function OrdersView({
 
                       return (
                         <div key={sIdx} className="flex gap-3 text-xs font-sans items-start relative">
-                          <span className={`h-3 w-3 rounded-full mt-1 border-2 z-10 ${isDone ? 'bg-[#8B6B4F] border-[#8B6B4F]' : 'bg-white border-zinc-200'}`} />
+                          <span className={`h-3 w-3 rounded-full mt-1 border-2 z-10 ${isDone ? 'bg-[#181d26] border-[#181d26]' : 'bg-white border-zinc-200'}`} />
                           <div>
                             <p className={`font-semibold ${isDone ? 'text-zinc-800' : 'text-zinc-400'}`}>{stepLabel}</p>
                             <p className="font-mono text-[9.5px] text-zinc-400 mt-0.5">

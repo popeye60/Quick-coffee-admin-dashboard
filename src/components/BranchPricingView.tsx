@@ -161,9 +161,9 @@ export default function BranchPricingView({
     <div className="p-6 space-y-6 font-sans">
       
       {/* Title Header bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] shadow-xs">
+      <div className="flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-4 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#dddddd] shadow-xs">
         <div>
-          <h3 className="font-sans font-bold text-sm text-[#2E2A25]">
+          <h3 className="font-sans font-bold text-sm text-[#181d26]">
             {language === 'TH' ? 'ระบบตั้งราคาสินค้ารายสาขา' : 'Branch Pricing & Status Management'}
           </h3>
           <p className="font-sans text-[11px] text-zinc-500">
@@ -182,7 +182,7 @@ export default function BranchPricingView({
               }}
               className={`px-3 py-1 text-xs font-sans font-bold rounded-md transition-all cursor-pointer whitespace-nowrap ${
                 activeBranch === br 
-                  ? 'bg-[#8B6B4F] text-white shadow-xs' 
+                  ? 'bg-[#181d26] text-white shadow-xs' 
                   : 'text-zinc-600 hover:bg-stone-50'
               }`}
             >
@@ -195,10 +195,10 @@ export default function BranchPricingView({
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         
         {/* Core Products Pricing Sheet list within current branch */}
-        <div className="lg:col-span-8 bg-white border border-[#E6DFD9] rounded-xl shadow-xs overflow-hidden">
-          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9] flex justify-between items-center">
-            <h4 className="font-sans font-bold text-xs text-[#2E2A25] uppercase tracking-wide">
-              {language === 'TH' ? 'รายการขอบเขตขายหลัก' : 'Pricing Matrix'} - <span className="text-[#8B6B4F]">{activeBranch}</span>
+        <div className="lg:col-span-8 bg-white border border-[#dddddd] rounded-xl shadow-xs overflow-hidden">
+          <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd] flex justify-between items-center">
+            <h4 className="font-sans font-bold text-xs text-[#181d26] uppercase tracking-wide">
+              {language === 'TH' ? 'รายการขอบเขตขายหลัก' : 'Pricing Matrix'} - <span className="text-[#181d26]">{activeBranch}</span>
             </h4>
             <span className="font-mono text-[10px] text-zinc-400 font-bold">{menuItems.length} Products</span>
           </div>
@@ -206,7 +206,7 @@ export default function BranchPricingView({
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#E6DFD9] bg-stone-50/50">
+                <tr className="border-b border-[#dddddd] bg-stone-50/50">
                   <th className="py-2.5 px-4 font-sans text-[10.5px] font-bold text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'สินค้า' : 'Product'}</th>
                   <th className="py-2.5 px-4 font-sans text-[10.5px] font-bold text-zinc-500 uppercase tracking-wider text-right">{language === 'TH' ? 'ราคากลาง' : 'Default Price'}</th>
                   <th className="py-2.5 px-4 font-sans text-[10.5px] font-bold text-zinc-500 uppercase tracking-wider text-center">{language === 'TH' ? 'ราคาขายที่สาขา' : 'Selling Price'}</th>
@@ -245,7 +245,7 @@ export default function BranchPricingView({
                               type="number"
                               value={tempPrice}
                               onChange={(e) => setTempPrice(e.target.value)}
-                              className="w-16 text-center border p-1 rounded font-mono font-bold text-zinc-800 text-xs focus:outline-none focus:border-[#8B6B4F]"
+                              className="w-16 text-center border p-1 rounded font-mono font-bold text-zinc-800 text-xs focus:outline-none focus:border-[#181d26]"
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleSaveBranchPrice(item.id);
                                 if (e.key === 'Escape') setEditingProductId(null);
@@ -255,14 +255,14 @@ export default function BranchPricingView({
                             <button
                               id={`save-item-price-btn-${item.id}`}
                               onClick={() => handleSaveBranchPrice(item.id)}
-                              className="p-1 bg-[#8B6B4F] text-white rounded hover:bg-[#70533C]"
+                              className="p-1 bg-[#181d26] text-white rounded hover:bg-[#0d1218]"
                             >
                               <Check size={12} />
                             </button>
                           </div>
                         ) : (
                           <div className="flex items-center justify-center gap-1">
-                            <span className={`font-mono font-black text-sm ${pricing.isOverridden ? 'text-[#8B6B4F]' : 'text-zinc-700'}`}>
+                            <span className={`font-mono font-black text-sm ${pricing.isOverridden ? 'text-[#181d26]' : 'text-zinc-700'}`}>
                               {formatCurrency(pricing.sellingPrice)}
                             </span>
                             <button
@@ -271,7 +271,7 @@ export default function BranchPricingView({
                                 setEditingProductId(item.id);
                                 setTempPrice(pricing.sellingPrice.toString());
                               }}
-                              className="text-zinc-400 hover:text-[#8B6B4F] p-0.5"
+                              className="text-zinc-400 hover:text-[#181d26] p-0.5"
                               title="Modify branch selling price"
                             >
                               ✏️
@@ -290,7 +290,7 @@ export default function BranchPricingView({
                           {pricing.isAvailable ? (
                             <>
                               <span className="text-[10px] text-emerald-600 bg-emerald-50 font-bold px-1.5 py-0.2 rounded">{language === 'TH' ? 'เปิดบริการสาขา' : 'Selling'}</span>
-                              <ToggleRight size={20} className="text-[#A8BB9A]" />
+                              <ToggleRight size={20} className="text-[#a8d8c4]" />
                             </>
                           ) : (
                             <>
@@ -308,7 +308,7 @@ export default function BranchPricingView({
                             {language === 'TH' ? 'ปรับแต่งค่า' : 'Customized'}
                           </span>
                         ) : (
-                          <span className="font-mono text-[9px] text-[#A8BB9A] font-medium tracking-wide uppercase">
+                          <span className="font-mono text-[9px] text-[#a8d8c4] font-medium tracking-wide uppercase">
                             {language === 'TH' ? 'ค่ามาตรฐาน' : 'Default'}
                           </span>
                         )}
@@ -322,9 +322,9 @@ export default function BranchPricingView({
         </div>
 
         {/* Bulk Pricing Overrides Tool cards (4 cols) */}
-        <div className="lg:col-span-4 bg-white border border-[#E6DFD9] rounded-xl shadow-xs self-start overflow-hidden">
-          <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
-            <h4 className="font-sans font-bold text-xs text-[#2E2A25] flex items-center gap-1.5">
+        <div className="lg:col-span-4 bg-white border border-[#dddddd] rounded-xl shadow-xs self-start overflow-hidden">
+          <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd]">
+            <h4 className="font-sans font-bold text-xs text-[#181d26] flex items-center gap-1.5">
               <Sparkles size={14} className="text-pink-500" />
               <span>{language === 'TH' ? 'เครื่องมือปรับราคาเป้ากลุ่ม' : 'Bulk Action Console'}</span>
             </h4>
@@ -340,19 +340,19 @@ export default function BranchPricingView({
               <div className="grid grid-cols-3 gap-1 bg-stone-100 p-1 rounded-lg border">
                 <button
                   onClick={() => setBulkPricingMode('add')}
-                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'add' ? 'bg-[#8B6B4F] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
+                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'add' ? 'bg-[#181d26] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
                 >
                   + Increase
                 </button>
                 <button
                   onClick={() => setBulkPricingMode('subtract')}
-                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'subtract' ? 'bg-[#8B6B4F] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
+                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'subtract' ? 'bg-[#181d26] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
                 >
                   - Decrease
                 </button>
                 <button
                   onClick={() => setBulkPricingMode('reset')}
-                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'reset' ? 'bg-[#8B6B4F] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
+                  className={`py-1 text-center font-sans font-bold rounded cursor-pointer ${bulkPricingMode === 'reset' ? 'bg-[#181d26] text-white shadow-xs' : 'text-zinc-500 hover:text-zinc-800'}`}
                 >
                   ⚙️ Reset
                 </button>
@@ -364,13 +364,13 @@ export default function BranchPricingView({
               <div className="space-y-1">
                 <label className="text-zinc-500 font-bold block">{language === 'TH' ? 'อัตราราคากลางส่วนเบี่ยงเบน (฿):' : 'Cost Value Adjustment (฿):'}</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#8B6B4F] font-bold font-mono">฿</span>
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-[#181d26] font-bold font-mono">฿</span>
                   <input
                     type="number"
                     min="1"
                     value={bulkValue}
                     onChange={(e) => setBulkValue(Number(e.target.value))}
-                    className="w-full text-xs p-2 pl-7 border border-zinc-200 rounded-lg focus:outline-none focus:border-[#8B6B4F] font-mono font-bold text-zinc-800 bg-stone-50/50"
+                    className="w-full text-xs p-2 pl-7 border border-zinc-200 rounded-lg focus:outline-none focus:border-[#181d26] font-mono font-bold text-zinc-800 bg-stone-50/50"
                   />
                 </div>
               </div>
@@ -387,7 +387,7 @@ export default function BranchPricingView({
             <button
               id="bulk-update-pricing-btn"
               onClick={handleBulkAssignment}
-              className="w-full py-2 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center justify-center gap-1.5 font-semibold"
+              className="w-full py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer flex items-center justify-center gap-1.5 font-semibold"
             >
               {language === 'TH' ? 'ยืนยันอัปเดตราคาแบบกลุ่ม' : 'Apply Branch Variations'}
             </button>

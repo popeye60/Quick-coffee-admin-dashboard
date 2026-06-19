@@ -265,21 +265,8 @@ export default function PaymentVerificationView({
   setSelectedOrderId,
   roleMode = 'Admin'
 }: PaymentVerificationViewProps) {
-  // Local state for demo mode, pre-populating with localstorage so we don't lose sample data during tab switching
-  const [demoOrders, setDemoOrders] = useState<Order[]>(() => {
-    const saved = localStorage.getItem('quick_coffee_demo_payment_orders_v2');
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (parsed && Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      } catch (err) {
-        console.warn('Failed to parse local payment verification demo state', err);
-      }
-    }
-    return INITIAL_DEMO_RECORDS;
-  });
+  // Local state for demo mode only. Refreshing the page restores the original samples.
+  const [demoOrders, setDemoOrders] = useState<Order[]>(() => JSON.parse(JSON.stringify(INITIAL_DEMO_RECORDS)));
 
   // Current tab filter for the sidebar queue (Pending vs All vs Approved vs Rejected)
   const [filterType, setFilterType] = useState<'Pending' | 'Approved' | 'Rejected' | 'All'>('Pending');
@@ -294,11 +281,6 @@ export default function PaymentVerificationView({
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [actionSuccess, setActionSuccess] = useState<'approved' | 'rejected' | null>(null);
   const { language, formatCurrency } = useLanguage();
-
-  // Save to localstorage whenever demoOrders changes to satisfy "Allow repeated testing of payment verification workflows without losing sample data"
-  useEffect(() => {
-    localStorage.setItem('quick_coffee_demo_payment_orders_v2', JSON.stringify(demoOrders));
-  }, [demoOrders]);
 
   // Synchronize local demoOrders with parent orders when parent orders change
   useEffect(() => {
@@ -570,11 +552,11 @@ export default function PaymentVerificationView({
 
   // 2. Reset Demo Data handler with custom React Modal Confirmation
   const handleResetDemoData = () => {
-    setDemoOrders(INITIAL_DEMO_RECORDS);
+    const resetRecords = JSON.parse(JSON.stringify(INITIAL_DEMO_RECORDS)) as Order[];
+    setDemoOrders(resetRecords);
     setSelectedScenarioMap({});
-    setSelectedOrderId(INITIAL_DEMO_RECORDS[0].id);
+    setSelectedOrderId(resetRecords[0].id);
     setFilterType('Pending');
-    localStorage.setItem('quick_coffee_demo_payment_orders_v2', JSON.stringify(INITIAL_DEMO_RECORDS));
     setShowResetConfirm(false);
   };
 
@@ -724,11 +706,11 @@ export default function PaymentVerificationView({
           </div>
         </div>
 
-        <div className="bg-[#FDFBF7] border border-[#E6DFD9] rounded-xl p-3.5 flex items-start gap-3">
-          <div className="p-1.5 bg-[#F5EDE3] rounded-lg shrink-0"><FileSearch size={14} className="text-[#8B6B4F]" /></div>
+        <div className="bg-[#f8fafc] border border-[#dddddd] rounded-xl p-3.5 flex items-start gap-3">
+          <div className="p-1.5 bg-[#f8fafc] rounded-lg shrink-0"><FileSearch size={14} className="text-[#181d26]" /></div>
           <div>
-            <p className="font-mono text-[9px] text-[#8B6B4F] font-extrabold uppercase tracking-wider">{language === 'TH' ? 'อัตราสำเร็จ' : 'Success Rate'}</p>
-            <p className="font-mono text-xl font-black text-[#2E2A25] leading-none mt-0.5">{successRate}%</p>
+            <p className="font-mono text-[9px] text-[#181d26] font-extrabold uppercase tracking-wider">{language === 'TH' ? 'อัตราสำเร็จ' : 'Success Rate'}</p>
+            <p className="font-mono text-xl font-black text-[#181d26] leading-none mt-0.5">{successRate}%</p>
             <p className="font-sans text-[9px] text-zinc-400 mt-0.5">{language === 'TH' ? 'ยืนยันสำเร็จทั้งหมด' : 'All verifications'}</p>
           </div>
         </div>
@@ -747,12 +729,12 @@ export default function PaymentVerificationView({
       <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 animate-fade-in">
         
         {/* Left Panel: Auditing Slips Queue (40% width) */}
-        <div className="lg:col-span-4 bg-[#FFFFFF] border border-[#E6DFD9] rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between h-[80vh]">
+        <div className="lg:col-span-4 bg-[#FFFFFF] border border-[#dddddd] rounded-2xl overflow-hidden shadow-xs flex flex-col justify-between h-[80vh]">
           <div>
-            <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9]">
+            <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd]">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="font-sans font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
-                  <Database size={15} className="text-[#8B6B4F]" />
+                <h3 className="font-sans font-bold text-sm text-[#181d26] flex items-center gap-1.5">
+                  <Database size={15} className="text-[#181d26]" />
                   <span>{language === 'TH' ? 'รายการคิวสลิปทั้งหมด' : 'Auditing Queue'}</span>
                 </h3>
                 <span className="font-mono text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-extrabold uppercase tracking-widest animate-pulse">
@@ -774,12 +756,12 @@ export default function PaymentVerificationView({
                       onClick={() => setFilterType(tab)}
                       className={`py-1.5 rounded-lg text-center transition-all font-bold cursor-pointer ${
                         isActive 
-                          ? 'bg-white text-[#2E2A25] shadow-xs' 
+                          ? 'bg-white text-[#181d26] shadow-xs' 
                           : 'text-zinc-500 hover:text-zinc-800 hover:bg-stone-50'
                       }`}
                     >
                       <span className="block leading-none">{tab}</span>
-                      <span className="font-mono text-[9px] text-[#8B6B4F] font-black">({count})</span>
+                      <span className="font-mono text-[9px] text-[#181d26] font-black">({count})</span>
                     </button>
                   );
                 })}
@@ -810,7 +792,7 @@ export default function PaymentVerificationView({
                     <button
                       id="regen-empty-btn"
                       onClick={handleRegenerateRandomSamples}
-                      className="py-2 px-3.5 bg-[#8B6B4F] hover:bg-[#72553C] text-white text-xs font-bold rounded-xl transition-all shadow-4xs cursor-pointer flex items-center justify-center gap-1"
+                      className="py-2 px-3.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl transition-all shadow-4xs cursor-pointer flex items-center justify-center gap-1"
                     >
                       <Sparkles size={11} className="fill-white" />
                       <span>{language === 'TH' ? 'สร้างข้อมูลตัวอย่างใหม่' : 'Generate New Samples'}</span>
@@ -846,7 +828,7 @@ export default function PaymentVerificationView({
                       }}
                       className={`p-3.5 hover:bg-stone-50/50 cursor-pointer transition-all border-l-4 ${
                         isActive 
-                          ? 'bg-amber-50/20 border-[#8B6B4F] shadow-4xs' 
+                          ? 'bg-amber-50/20 border-[#181d26] shadow-4xs' 
                           : 'border-transparent'
                       }`}
                     >
@@ -856,7 +838,7 @@ export default function PaymentVerificationView({
                           <span className={`font-mono font-bold text-[9px] px-1.5 py-0.5 rounded ${statusBadgeClass}`}>
                             {statusBadgeText}
                           </span>
-                          <span className="font-mono text-xs font-black text-[#8B6B4F]">{formatCurrency(order.amount)}</span>
+                          <span className="font-mono text-xs font-black text-[#181d26]">{formatCurrency(order.amount)}</span>
                         </div>
                       </div>
                       <div className="flex items-center justify-between mt-2 text-xs font-sans">
@@ -881,13 +863,13 @@ export default function PaymentVerificationView({
         {/* Right Side: Slip Inspection and Approval Center (60% width) */}
         <div className="lg:col-span-6 space-y-4 h-[80vh] flex flex-col justify-start">
           {actionSuccess ? (
-            <div className="flex-1 bg-[#FFFFFF] border border-[#E6DFD9] rounded-2xl flex flex-col items-center justify-center text-center p-8 shadow-xs">
+            <div className="flex-1 bg-[#FFFFFF] border border-[#dddddd] rounded-2xl flex flex-col items-center justify-center text-center p-8 shadow-xs">
               <div className={`w-16 h-16 rounded-full flex items-center justify-center text-white text-3xl mb-4 animate-bounce ${
-                actionSuccess === 'approved' ? 'bg-[#A8BB9A]' : 'bg-red-500'
+                actionSuccess === 'approved' ? 'bg-[#a8d8c4]' : 'bg-red-500'
               }`}>
                 {actionSuccess === 'approved' ? '✓' : '✗'}
               </div>
-              <h3 className="font-sans font-extrabold text-base text-[#2E2A25]">
+              <h3 className="font-sans font-extrabold text-base text-[#181d26]">
                 {actionSuccess === 'approved' 
                   ? (language === 'TH' ? 'ยืนยันใบเสร็จโอนเงินสำเร็จ!' : 'Payment Slip Verified!')
                   : (language === 'TH' ? 'ปฏิเสธใบเสร็จโอนเงินสำเร็จ' : 'Payment Slip Rejected')
@@ -904,17 +886,17 @@ export default function PaymentVerificationView({
               </div>
             </div>
           ) : selectedOrder ? (
-            <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-2xl overflow-hidden shadow-xs flex-1 flex flex-col justify-between">
+            <div className="bg-[#FFFFFF] border border-[#dddddd] rounded-2xl overflow-hidden shadow-xs flex-1 flex flex-col justify-between">
               
               <div>
                 {/* Slip Audit Header */}
-                <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9] flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd] flex flex-col sm:flex-row flex-wrap sm:items-center sm:justify-between gap-3">
                   <div>
-                    <h3 className="font-sans font-bold text-sm text-[#2E2A25] flex items-center gap-1.5">
-                      <FileSearch size={16} className="text-[#8B6B4F]" />
+                    <h3 className="font-sans font-bold text-sm text-[#181d26] flex items-center gap-1.5">
+                      <FileSearch size={16} className="text-[#181d26]" />
                       <span>{language === 'TH' ? 'งานตรวจสอบธุรกรรมการโอน:' : 'Transaction Audit:'} {selectedOrder.id}</span>
                     </h3>
-                    <p className="font-sans text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'สาขาการชง:' : 'Outlet point:'} <span className="font-bold text-[#8B6B4F]">{selectedOrder.branch}</span></p>
+                    <p className="font-sans text-[11px] text-zinc-500 mt-0.5">{language === 'TH' ? 'สาขาการชง:' : 'Outlet point:'} <span className="font-bold text-[#181d26]">{selectedOrder.branch}</span></p>
                   </div>
                   <div className="bg-amber-50 text-amber-950 px-4 py-2 rounded-lg border border-amber-200/40 text-center flex flex-col justify-center min-w-[110px] shrink-0">
                     <span className="text-[10px] text-zinc-500 font-bold uppercase leading-tight mb-1">{language === 'TH' ? 'ยอดคำสั่งซื้อ' : 'Order Amount'}</span>
@@ -947,7 +929,7 @@ export default function PaymentVerificationView({
                         : selectedOrder.orderTime || '13 Jun 2026';
 
                       return (
-                        <div className="w-full max-w-[190px] bg-[#EBF9F1] p-3 rounded-2xl border border-emerald-100 shadow-xs relative overflow-hidden select-none">
+                        <div className="w-full max-w-[190px] bg-[#f8fafc] p-3 rounded-2xl border border-emerald-100 shadow-xs relative overflow-hidden select-none">
                           
                           {/* Inner receipt card paper wrapper */}
                           <div className={`bg-[#FFFFFF] p-3 rounded-xl shadow-xs space-y-3 text-[10px] transition-all relative ${
@@ -957,20 +939,20 @@ export default function PaymentVerificationView({
                             {/* Thai Kasikorn style header */}
                             <div className="flex items-center justify-between border-b pb-2 border-zinc-100">
                               <div className="flex items-center gap-1.5">
-                                <div className="w-5 h-5 rounded-full bg-[#13C562] flex items-center justify-center font-bold text-white text-[9px] tracking-tighter">
+                                <div className="w-5 h-5 rounded-full bg-[#39bf45] flex items-center justify-center font-bold text-white text-[9px] tracking-tighter">
                                   K
                                 </div>
                                 <div className="leading-tight">
-                                  <p className="font-sans font-bold text-[#13C562] text-[9px] leading-none mb-0.5">K PLUS</p>
+                                  <p className="font-sans font-bold text-[#39bf45] text-[9px] leading-none mb-0.5">K PLUS</p>
                                   <p className="text-[6.5px] text-zinc-400 font-mono">E-RECEIPT</p>
                                 </div>
                               </div>
-                              <Check size={11} className="text-[#13C562] stroke-[3]" />
+                              <Check size={11} className="text-[#39bf45] stroke-[3]" />
                             </div>
 
                             {/* Success Check status overlay */}
                             <div className="text-center py-0.5">
-                              <p className="font-sans font-bold text-[#13C562] text-[10px] uppercase tracking-wide">โอนเงินสำเร็จ</p>
+                              <p className="font-sans font-bold text-[#39bf45] text-[10px] uppercase tracking-wide">โอนเงินสำเร็จ</p>
                               <p className="font-mono text-[7.5px] text-zinc-400 mt-0.5">{overrideTime}</p>
                             </div>
 
@@ -989,9 +971,9 @@ export default function PaymentVerificationView({
 
                               {/* Receiver */}
                               <div className="flex items-start gap-1">
-                                <span className="w-1 h-1 rounded-full bg-[#13C562] mt-1 shrink-0" />
+                                <span className="w-1 h-1 rounded-full bg-[#39bf45] mt-1 shrink-0" />
                                 <div>
-                                  <span className="text-[#13C562] block text-[7.5px] leading-none mb-0.5 font-bold">ผู้รับโอน (Receiver)</span>
+                                  <span className="text-[#39bf45] block text-[7.5px] leading-none mb-0.5 font-bold">ผู้รับโอน (Receiver)</span>
                                   <span className="font-bold text-zinc-800 block leading-none">Quick Coffee Co., Ltd.</span>
                                   <p className="text-[7px] text-zinc-450 font-mono">PromptPay ID 09-xx412</p>
                                 </div>
@@ -1016,7 +998,7 @@ export default function PaymentVerificationView({
                               {/* Money block */}
                               <div className="pt-1.5 border-t border-zinc-100 text-center">
                                 <span className="font-sans text-[7.5px] text-zinc-400 block uppercase font-medium">จำนวนเงิน (Amount Transferred)</span>
-                                <span className="font-mono text-xs font-black text-[#13C562] tracking-tight">
+                                <span className="font-mono text-xs font-black text-[#39bf45] tracking-tight">
                                   {formatCurrency(receiptAmount)}
                                 </span>
                               </div>
@@ -1050,7 +1032,7 @@ export default function PaymentVerificationView({
                           )}
 
                           {/* Security footer stamp overlay */}
-                          <div className="mt-2.5 flex items-center justify-center gap-1 font-sans text-[8px] text-[#8CA27D] font-bold">
+                          <div className="mt-2.5 flex items-center justify-center gap-1 font-sans text-[8px] text-[#006400] font-bold">
                             🛡️ Secured by K-PLUS Verification API
                           </div>
                         </div>
@@ -1112,14 +1094,14 @@ export default function PaymentVerificationView({
                         }
 
                         return (
-                          <div className="bg-[#FDFBF7] p-3.5 rounded-xl border border-[#E6DFD9] space-y-2 shadow-2xs">
-                            <span className="text-[9px] uppercase font-mono font-black text-[#8B6B4F] tracking-wide block leading-none">
+                          <div className="bg-[#f8fafc] p-3.5 rounded-xl border border-[#dddddd] space-y-2 shadow-2xs">
+                            <span className="text-[9px] uppercase font-mono font-black text-[#181d26] tracking-wide block leading-none">
                               {language === 'TH' ? 'ส่วนตรวจสอบจำนวนเทียบ (Dedicated Amount Verification)' : 'Amount Verification Status'}
                             </span>
                             
                             <div className="grid grid-cols-3 gap-2">
                               {/* Expected Amount */}
-                              <div className="p-2 bg-white border border-[#E6DFD9]/60 rounded-xl text-center">
+                              <div className="p-2 bg-white border border-[#dddddd]/60 rounded-xl text-center">
                                 <span className="text-zinc-400 text-[8.5px] block font-bold leading-none mb-1">{language === 'TH' ? 'ยอดที่เรียกเก็บ' : 'Expected Amount'}</span>
                                 <span className="font-mono text-xs font-black text-zinc-900">
                                   {formatCurrency(selectedOrder.amount)}
@@ -1127,9 +1109,9 @@ export default function PaymentVerificationView({
                               </div>
                               
                               {/* Slip Amount */}
-                              <div className="p-2 bg-white border border-[#E6DFD9]/60 rounded-xl text-center">
+                              <div className="p-2 bg-white border border-[#dddddd]/60 rounded-xl text-center">
                                 <span className="text-zinc-400 text-[8.5px] block font-bold leading-none mb-1">{language === 'TH' ? 'ตรวจจากสลิป' : 'Slip Amount'}</span>
-                                <span className="font-mono text-xs font-black text-[#8B6B4F]">
+                                <span className="font-mono text-xs font-black text-[#181d26]">
                                   {renderedSlipAmountLabel}
                                 </span>
                               </div>
@@ -1152,7 +1134,7 @@ export default function PaymentVerificationView({
                         
                         {/* 7. VERIFICATION TIMELINE */}
                         <div className="sm:col-span-5 p-3 border border-stone-100 rounded-xl bg-stone-50/45 space-y-2">
-                          <span className="font-sans text-[9px] text-[#8B6B4F] block uppercase font-black tracking-wider leading-none">
+                          <span className="font-sans text-[9px] text-[#181d26] block uppercase font-black tracking-wider leading-none">
                             {language === 'TH' ? 'ขั้นตอนตรวจสอบธุรกรรม' : 'Verification Timeline'}
                           </span>
                           
@@ -1160,7 +1142,7 @@ export default function PaymentVerificationView({
                             
                             {/* 1. Order Created (Always done) */}
                             <div className="relative text-[10px]">
-                              <span className="absolute -left-[14px] top-0.5 w-2 h-2 rounded-full bg-[#A8BB9A] border border-white ring-1 ring-[#A8BB9A]/50" />
+                              <span className="absolute -left-[14px] top-0.5 w-2 h-2 rounded-full bg-[#a8d8c4] border border-white ring-1 ring-[#a8d8c4]/50" />
                               <div className="flex justify-between text-zinc-700 font-bold leading-none">
                                 <span>{language === 'TH' ? 'สร้างคำสั่งออเดอร์' : 'Order Created'}</span>
                                 <span className="font-mono text-[8px] text-[10px] text-zinc-400">{selectedOrder.orderTime?.split(',')[1]?.trim() || selectedOrder.time}</span>
@@ -1169,10 +1151,10 @@ export default function PaymentVerificationView({
 
                             {/* 2. Customer Uploaded Slip (Always done) */}
                             <div className="relative text-[10px]">
-                              <span className="absolute -left-[14px] top-0.5 w-2 h-2 rounded-full bg-[#A8BB9A] border border-white ring-1 ring-[#A8BB9A]/50" />
+                              <span className="absolute -left-[14px] top-0.5 w-2 h-2 rounded-full bg-[#a8d8c4] border border-white ring-1 ring-[#a8d8c4]/50" />
                               <div className="flex justify-between text-zinc-700 font-bold leading-none">
                                 <span>{language === 'TH' ? 'อัปโหลดสลิปแล้ว' : 'Slip Uploaded'}</span>
-                                <span className="font-mono text-[8px] text-[#A8BB9A] font-extrabold">Uploaded</span>
+                                <span className="font-mono text-[8px] text-[#a8d8c4] font-extrabold">Uploaded</span>
                               </div>
                             </div>
 
@@ -1182,7 +1164,7 @@ export default function PaymentVerificationView({
                               return (
                                 <div className="relative text-[10px]">
                                   <span className={`absolute -left-[14px] top-0.5 w-2 h-2 rounded-full border border-white ${
-                                    isPaidOrCancelled ? 'bg-[#A8BB9A]' : 'bg-amber-500 animate-pulse ring-1 ring-amber-500/20'
+                                    isPaidOrCancelled ? 'bg-[#a8d8c4]' : 'bg-amber-500 animate-pulse ring-1 ring-amber-500/20'
                                   }`} />
                                   <div className="flex justify-between text-zinc-700 font-bold leading-none">
                                     <span>{language === 'TH' ? 'อยู่ระหว่างการประเมิน' : 'Waiting Verification'}</span>
@@ -1199,7 +1181,7 @@ export default function PaymentVerificationView({
                               return (
                                 <div className="relative text-[10px]">
                                   <span className={`absolute -left-[14px] top-0.5 w-2 h-2 rounded-full border border-white ${
-                                    isPaid ? 'bg-[#A8BB9A]' : isCancelled ? 'bg-red-500' : 'bg-zinc-200'
+                                    isPaid ? 'bg-[#a8d8c4]' : isCancelled ? 'bg-red-500' : 'bg-zinc-200'
                                   }`} />
                                   <div className="flex justify-between text-zinc-600 font-semibold leading-none">
                                     <span className={isPaid ? 'text-emerald-700 font-bold' : isCancelled ? 'text-red-700 font-bold' : 'text-zinc-400'}>
@@ -1224,7 +1206,7 @@ export default function PaymentVerificationView({
                           <div className="divide-y divide-zinc-100 max-h-24 overflow-y-auto custom-scrollbar pr-0.5 text-xs text-zinc-700">
                             {selectedOrder.items.map((it, idx) => (
                               <div key={idx} className="flex justify-between py-1 text-xs">
-                                <span className="font-sans text-zinc-800">{it.item.name} <strong className="text-[#8B6B4F]">x{it.qty}</strong></span>
+                                <span className="font-sans text-zinc-800">{it.item.name} <strong className="text-[#181d26]">x{it.qty}</strong></span>
                                 <span className="font-mono text-zinc-500 font-bold">{formatCurrency(it.total)}</span>
                               </div>
                             ))}
@@ -1236,7 +1218,7 @@ export default function PaymentVerificationView({
                       {/* Display Notes or failure flags if any */}
                       {selectedOrder.note && (
                         <div className="p-2.5 bg-amber-50/10 border border-amber-200/20 rounded-xl text-[10.5px] text-zinc-600 font-sans italic flex items-start gap-1">
-                          <span className="font-bold text-[#8B6B4F] tracking-tight">{language === 'TH' ? 'โน้ตกำกับอ้างอิง:' : 'Audit Note:'}</span>
+                          <span className="font-bold text-[#181d26] tracking-tight">{language === 'TH' ? 'โน้ตกำกับอ้างอิง:' : 'Audit Note:'}</span>
                           <span>"{selectedOrder.note}"</span>
                         </div>
                       )}
@@ -1250,7 +1232,7 @@ export default function PaymentVerificationView({
 
               {/* Scenario Switcher — Staff only, pending orders */}
               {roleMode === 'Staff' && selectedOrder.status === 'Pending Payment' && (
-                <div className="px-5 py-3 border-t bg-[#FDFBF7] flex flex-wrap items-center gap-2">
+                <div className="px-5 py-3 border-t bg-[#f8fafc] flex flex-wrap items-center gap-2">
                   <span className="font-mono text-[9px] text-zinc-400 uppercase font-black tracking-wider shrink-0">
                     {language === 'TH' ? 'จำลองสถานการณ์สลิป:' : 'Slip Scenario:'}
                   </span>
@@ -1263,8 +1245,8 @@ export default function PaymentVerificationView({
                         onClick={() => setSelectedScenarioMap(prev => ({ ...prev, [selectedOrder.id]: s }))}
                         className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer ${
                           isActive
-                            ? 'bg-[#8B6B4F] text-white border-[#8B6B4F]'
-                            : 'bg-white text-zinc-500 border-zinc-200 hover:border-[#8B6B4F] hover:text-[#8B6B4F]'
+                            ? 'bg-[#181d26] text-white border-[#181d26]'
+                            : 'bg-white text-zinc-500 border-zinc-200 hover:border-[#181d26] hover:text-[#181d26]'
                         }`}
                       >
                         {s}: {labels[s]}
@@ -1275,7 +1257,7 @@ export default function PaymentVerificationView({
               )}
 
               {/* Action Buttons Bar — Staff operational actions / Admin read-only */}
-              <div className="px-5 py-4 border-t bg-white flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
+              <div className="px-5 py-4 border-t bg-white flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-2.5">
                 {roleMode === 'Admin' ? (
                   <div className="flex-1 flex items-center gap-2 px-3 py-2.5 bg-stone-50 border border-stone-200 rounded-xl text-[10.5px] font-sans text-zinc-500">
                     <span className="text-base">🔒</span>
@@ -1303,7 +1285,7 @@ export default function PaymentVerificationView({
                         <button
                           id="approve-payment-btn"
                           onClick={handleApprove}
-                          className="flex-1 py-2.5 bg-[#A8BB9A] hover:bg-[#8CA27D] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
+                          className="flex-1 py-2.5 bg-[#a8d8c4] hover:bg-[#006400] text-white font-sans text-xs font-bold rounded-xl shadow-xs flex items-center justify-center gap-1.5 cursor-pointer transition-colors"
                         >
                           <Check size={14} />
                           {language === 'TH' ? 'อนุมัติและส่งเข้าคิวชง ✓' : 'Approve & Queue for Brewing'}
@@ -1336,7 +1318,7 @@ export default function PaymentVerificationView({
 
               {/* Security Warning Label footer */}
               <div className="px-5 py-3 border-t bg-stone-50/50 text-[10px] font-sans text-zinc-400 flex items-center gap-2">
-                <ShieldAlert size={14} className="text-[#8B6B4F] shrink-0" />
+                <ShieldAlert size={14} className="text-[#181d26] shrink-0" />
                 <span>
                   {language === 'TH'
                     ? 'สตาฟตรวจสอบความปลอดภัยอัตโนมัติ: กรุณาอนุมัติเฉพาะรายการที่มีสลิปแสดงวันเวลาและยอดตรงกับระบบจริง'
@@ -1347,7 +1329,7 @@ export default function PaymentVerificationView({
 
             </div>
           ) : (
-            <div className="flex-1 bg-[#FFFFFF] border border-[#E6DFD9] rounded-2xl flex flex-col items-center justify-center text-center p-8 shadow-xs text-zinc-400">
+            <div className="flex-1 bg-[#FFFFFF] border border-[#dddddd] rounded-2xl flex flex-col items-center justify-center text-center p-8 shadow-xs text-zinc-400">
               <div className="text-4xl mb-2">🎉</div>
               <h3 className="font-sans font-bold text-sm text-zinc-700">{language === 'TH' ? 'คิวตรวจสอบสลิปเสร็จครบถ้วน' : 'Verification Completed'}</h3>
               <p className="font-sans text-xs max-w-sm mt-1 mb-4 leading-normal">
@@ -1361,7 +1343,7 @@ export default function PaymentVerificationView({
               <button
                 id="regenerate-sample-data-btn"
                 onClick={handleRegenerateRandomSamples}
-                className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#72553C] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
+                className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl transition-all cursor-pointer shadow-xs inline-flex items-center gap-1.5"
               >
                 <Zap size={13} className="fill-white" />
                 <span>{language === 'TH' ? 'สร้างข้อมูลตัวอย่างใหม่' : 'Generate 10 New Samples'}</span>
@@ -1491,7 +1473,7 @@ export default function PaymentVerificationView({
                               setRejectReason('');
                             }
                           }}
-                          className="mt-0.5 h-3.5 w-3.5 text-[#8B6B4F] focus:ring-[#8B6B4F] border-zinc-300 rounded cursor-pointer"
+                          className="mt-0.5 h-3.5 w-3.5 text-[#181d26] focus:ring-[#181d26] border-zinc-300 rounded cursor-pointer"
                         />
                         <div className="leading-tight">
                           <span className="font-bold text-[10px] block">{item.en}</span>
@@ -1512,7 +1494,7 @@ export default function PaymentVerificationView({
                   value={rejectReason}
                   onChange={(e) => setRejectReason(e.target.value)}
                   placeholder={language === 'TH' ? 'พิมพ์แจกแจงคำอธิบายหรือแอดไวซ์ชี้แนะลูกค้าเพิ่มเติมที่หน้าร้านได้...' : 'Details for why this payment proof was categorized as invalid...'}
-                  className="w-full text-xs p-3 bg-stone-50 border border-zinc-200 rounded-xl focus:outline-none focus:border-[#8B6B4F] h-16 resize-none text-zinc-800"
+                  className="w-full text-xs p-3 bg-stone-50 border border-zinc-200 rounded-xl focus:outline-none focus:border-[#181d26] h-16 resize-none text-zinc-800"
                 />
               </div>
             </div>
@@ -1547,7 +1529,7 @@ export default function PaymentVerificationView({
           <div className="bg-white border rounded-2xl w-full max-w-sm p-5 shadow-2xl animate-in zoom-in-95 duration-100 space-y-4">
             <div className="flex items-center gap-2.5 text-amber-600 pb-2 border-b border-stone-100">
               <AlertTriangle size={19} className="animate-pulse" />
-              <h3 className="font-sans font-extrabold text-sm text-[#2E2A25]">
+              <h3 className="font-sans font-extrabold text-sm text-[#181d26]">
                 {language === 'TH' ? 'ยืนยันรีเซ็ตข้อมูลคิวสลิป?' : 'Confirm Reset Sample Slips?'}
               </h3>
             </div>

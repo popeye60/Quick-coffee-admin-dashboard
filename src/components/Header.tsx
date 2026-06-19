@@ -5,7 +5,7 @@
 
 import React, { useState } from 'react';
 import { Menu, Calendar, Bell } from 'lucide-react';
-import { Branch } from '../types';
+import { Branch, BranchStatus } from '../types';
 import { useLanguage } from '../hooks/useLanguage';
 
 interface HeaderProps {
@@ -14,6 +14,7 @@ interface HeaderProps {
   selectedBranch: Branch;
   setSelectedBranch: (branch: Branch) => void;
   staffAssignedBranch: string;
+  branchStatuses: Record<Exclude<Branch, 'All Branches'>, BranchStatus>;
   onOpenMobileSidebar: () => void;
 }
 
@@ -23,6 +24,7 @@ export default function Header({
   selectedBranch,
   setSelectedBranch,
   staffAssignedBranch,
+  branchStatuses,
   onOpenMobileSidebar
 }: HeaderProps) {
   const [showNotifications, setShowNotifications] = useState(false);
@@ -36,6 +38,41 @@ export default function Header({
 
   // Under Staff mode, the selected branch is hardcoded and locked to their assigned branch.
   const activeBranchDisplay = roleMode === 'Staff' ? (staffAssignedBranch as Branch) : selectedBranch;
+  const branchNames = Object.keys(branchStatuses) as Exclude<Branch, 'All Branches'>[];
+  const branchStatusMeta: Record<BranchStatus, { dot: string; labelTH: string; labelEN: string; tooltip: string; tooltipTH: string }> = {
+    Open: {
+      dot: 'bg-emerald-500',
+      labelTH: 'เปิดให้บริการ',
+      labelEN: 'Open',
+      tooltip: 'Branch is currently accepting orders.',
+      tooltipTH: 'สาขากำลังรับออเดอร์อยู่',
+    },
+    'Temporarily Closed': {
+      dot: 'bg-orange-500',
+      labelTH: 'ปิดชั่วคราว',
+      labelEN: 'Temporary Closed',
+      tooltip: 'Branch is temporarily unavailable.',
+      tooltipTH: 'สาขาปิดให้บริการชั่วคราว',
+    },
+    Closed: {
+      dot: 'bg-red-500',
+      labelTH: 'ปิดสาขา',
+      labelEN: 'Closed',
+      tooltip: 'Branch is currently closed.',
+      tooltipTH: 'สาขาปิดให้บริการ',
+    },
+  };
+  const selectedBranchStatus = activeBranchDisplay !== 'All Branches' ? branchStatuses[activeBranchDisplay] : null;
+  const branchStatusSummary = {
+    open: branchNames.filter(branch => branchStatuses[branch] === 'Open').length,
+    temporary: branchNames.filter(branch => branchStatuses[branch] === 'Temporarily Closed').length,
+    closed: branchNames.filter(branch => branchStatuses[branch] === 'Closed').length,
+  };
+  const branchStatusTitle = selectedBranchStatus
+    ? (language === 'TH' ? branchStatusMeta[selectedBranchStatus].tooltipTH : branchStatusMeta[selectedBranchStatus].tooltip)
+    : (language === 'TH'
+        ? `สถานะสาขา: ${branchStatusSummary.open} เปิดให้บริการ, ${branchStatusSummary.temporary} ปิดชั่วคราว, ${branchStatusSummary.closed} ปิดสาขา`
+        : `Branch status: ${branchStatusSummary.open} Open, ${branchStatusSummary.temporary} Temporary Closed, ${branchStatusSummary.closed} Closed`);
 
   // Map the current visible view tab tag to its localized counterpart
   const getTabLabel = (tab: string) => {
@@ -58,7 +95,7 @@ export default function Header({
   };
 
   return (
-    <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-coffee-border px-6 py-4 flex flex-col md:flex-row md:items-center md:justify-between gap-4 animate-fade-in">
+    <header className="sticky top-0 z-30 bg-white/85 backdrop-blur-md border-b border-coffee-border px-6 py-4 flex flex-col md:flex-row flex-wrap md:items-center md:justify-between gap-4 animate-fade-in">
       {/* Mobile control & Title */}
       <div className="flex items-center gap-3">
         <button 
@@ -76,14 +113,31 @@ export default function Header({
               {roleMode.toUpperCase()} {language === 'TH' ? 'มุมมอง' : 'VIEW'}
             </span>
           </h2>
-          <p className="font-sans text-xs text-coffee-muted mt-0.5">
-            {language === 'TH' ? 'สวัสดีครับ, ' : 'Welcome, '} <span className="font-semibold text-coffee">Admin User</span>. {language === 'TH' ? 'ระบบจัดการร้านกาแฟครบวงจร' : 'Complete coffee shop operation suite.'}
-          </p>
         </div>
       </div>
 
       {/* Control Widgets */}
       <div className="flex flex-wrap items-center gap-3 self-end md:self-auto">
+        {/* Branch operating status */}
+        <div
+          className="flex items-center gap-2 bg-white border border-coffee-border rounded-xl px-3 py-1.5 shadow-xs"
+          title={branchStatusTitle}
+        >
+          {selectedBranchStatus ? (
+            <>
+              <span className={`h-2.5 w-2.5 rounded-full ${branchStatusMeta[selectedBranchStatus].dot}`} />
+              <span className="font-sans text-xs font-bold text-coffee">
+                {language === 'TH' ? branchStatusMeta[selectedBranchStatus].labelTH : branchStatusMeta[selectedBranchStatus].labelEN}
+              </span>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 text-[11px] font-bold text-coffee">
+              <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-emerald-500" />{branchStatusSummary.open} {language === 'TH' ? 'เปิดให้บริการ' : 'Open'}</span>
+              {branchStatusSummary.temporary > 0 && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-orange-500" />{branchStatusSummary.temporary} {language === 'TH' ? 'ปิดชั่วคราว' : 'Temporary Closed'}</span>}
+              {branchStatusSummary.closed > 0 && <span className="inline-flex items-center gap-1"><span className="h-2 w-2 rounded-full bg-red-500" />{branchStatusSummary.closed} {language === 'TH' ? 'ปิดสาขา' : 'Closed'}</span>}
+            </div>
+          )}
+        </div>
         
         {/* Branch Selector Filter (Locked for staff) */}
         <div className="flex items-center gap-1.5 bg-white border border-coffee-border rounded-xl px-3 py-1.5 shadow-xs">
@@ -174,12 +228,6 @@ export default function Header({
               </div>
             </div>
           )}
-        </div>
-
-        {/* Status indicator badge */}
-        <div className="hidden sm:flex items-center gap-1.5 pl-3.5 border-l border-coffee-border">
-          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-          <span className="font-mono text-[10px] text-coffee-muted uppercase tracking-widest font-bold">LIVE</span>
         </div>
       </div>
     </header>

@@ -12,7 +12,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Coffee',
     price: 120,
     status: 'Available',
-    image: '☕'
+    image: '☕',
+    branchPrices: { 'Central Plaza': 120, 'Siam Square': 125, 'Mega Bangna': 120, 'The Mall Korat': 115 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-002',
@@ -20,7 +22,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Coffee',
     price: 75,
     status: 'Available',
-    image: '☕'
+    image: '☕',
+    branchPrices: { 'Central Plaza': 75, 'Siam Square': 80, 'Mega Bangna': 75, 'The Mall Korat': 70 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-003',
@@ -28,7 +32,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Coffee',
     price: 90,
     status: 'Available',
-    image: '🥛'
+    image: '🥛',
+    branchPrices: { 'Central Plaza': 90, 'Siam Square': 95, 'Mega Bangna': 90, 'The Mall Korat': 85 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-004',
@@ -36,7 +42,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Beverage',
     price: 80,
     status: 'Available',
-    image: '🧋'
+    image: '🧋',
+    branchPrices: { 'Central Plaza': 80, 'Siam Square': 85, 'Mega Bangna': 80, 'The Mall Korat': 80 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-005',
@@ -44,7 +52,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Bakery',
     price: 85,
     status: 'Available',
-    image: '🥐'
+    image: '🥐',
+    branchPrices: { 'Central Plaza': 85, 'Siam Square': 90, 'Mega Bangna': 85, 'The Mall Korat': 80 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-006',
@@ -52,7 +62,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Coffee',
     price: 65,
     status: 'Available',
-    image: '☕'
+    image: '☕',
+    branchPrices: { 'Central Plaza': 65, 'Siam Square': 70, 'Mega Bangna': 65, 'The Mall Korat': 65 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-007',
@@ -60,7 +72,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Coffee',
     price: 85,
     status: 'Available',
-    image: '☕'
+    image: '☕',
+    branchPrices: { 'Central Plaza': 85, 'Siam Square': 90, 'Mega Bangna': 85, 'The Mall Korat': 80 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   },
   {
     id: 'MENU-008',
@@ -68,7 +82,10 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Beverage',
     price: 95,
     status: 'Available',
-    image: '🍵'
+    image: '🍵',
+    branchPrices: { 'Central Plaza': 95, 'Siam Square': 100, 'Mega Bangna': 95, 'The Mall Korat': 90 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true },
+    special: { type: 'Recommended', description: 'Branch-selected matcha menu', startDate: '2026-05-01', endDate: '2026-08-31', availableBranches: ['Central Plaza', 'Mega Bangna', 'The Mall Korat'], priority: 1, active: true, publish: 'Published', featured: true }
   },
   {
     id: 'MENU-009',
@@ -76,7 +93,9 @@ export const INITIAL_MENU_ITEMS: CoffeeItem[] = [
     category: 'Bakery',
     price: 70,
     status: 'Available',
-    image: '🧁'
+    image: '🧁',
+    branchPrices: { 'Central Plaza': 70, 'Siam Square': 75, 'Mega Bangna': 70, 'The Mall Korat': 65 },
+    branchAvailable: { 'Central Plaza': true, 'Siam Square': true, 'Mega Bangna': true, 'The Mall Korat': true }
   }
 ];
 
@@ -97,6 +116,30 @@ const createOrder = (order: Omit<Order, 'amount' | 'items'> & { lines: Array<[nu
 };
 
 export const INITIAL_ORDERS: Order[] = [
+  createOrder({
+    id: 'ORD-20260525-201',
+    queueNo: '',
+    customerName: 'Narin S.',
+    customerPhone: '081-444-2030',
+    customerEmail: 'narin.s@example.com',
+    branch: 'Mega Bangna',
+    status: 'Auto Cancelled',
+    time: '09:35',
+    orderTime: '25 May 2026, 09:35',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    note: 'System cancelled unpaid order after payment timeout',
+    cancellationReason: 'Payment Timeout',
+    cancellationNote: 'Customer did not complete payment within 10 minutes',
+    cancelledBy: 'System',
+    cancelledAt: '25 May 2026, 09:45',
+    originalOrderStatus: 'Pending Payment',
+    lines: [[1, 1], [4, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '25 May 2026, 09:35', active: true },
+      { status: 'Auto Cancelled', time: '25 May 2026, 09:45', active: true },
+    ],
+  }),
   createOrder({
     id: 'ORD-20260525-217',
     queueNo: '',
@@ -425,16 +468,232 @@ export const INITIAL_ORDERS: Order[] = [
       { status: 'Completed', time: '25 May 2026, 10:00', active: true },
     ],
   }),
+  createOrder({
+    id: 'ORD-20260524-101',
+    queueNo: '001',
+    customerName: 'Kanyarat B.',
+    customerPhone: '081-555-1024',
+    customerEmail: 'kanyarat.b@example.com',
+    branch: 'Central Plaza',
+    status: 'Completed',
+    time: '08:45',
+    orderTime: '24 May 2026, 08:45',
+    paymentStatus: 'Paid',
+    paymentMethod: 'PromptPay QR',
+    lines: [[0, 1], [4, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '24 May 2026, 08:45', active: true },
+      { status: 'Paid', time: '24 May 2026, 08:46', active: true },
+      { status: 'Preparing', time: '24 May 2026, 08:48', active: true },
+      { status: 'Ready For Pickup', time: '24 May 2026, 08:55', active: true },
+      { status: 'Queue Called', time: '24 May 2026, 08:56', active: true },
+      { status: 'Completed', time: '24 May 2026, 09:00', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260524-102',
+    queueNo: '',
+    customerName: 'Wichai D.',
+    customerPhone: '089-222-1024',
+    customerEmail: 'wichai.d@example.com',
+    branch: 'Siam Square',
+    status: 'Pending Payment',
+    time: '11:20',
+    orderTime: '24 May 2026, 11:20',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    note: 'Waiting for customer payment confirmation',
+    lines: [[2, 1], [8, 1]],
+    timeline: [{ status: 'Pending Payment', time: '24 May 2026, 11:20', active: true }],
+  }),
+  createOrder({
+    id: 'ORD-20260524-103',
+    queueNo: '',
+    customerName: 'Apinya C.',
+    customerPhone: '082-333-1024',
+    customerEmail: 'apinya.c@example.com',
+    branch: 'Mega Bangna',
+    status: 'Auto Cancelled',
+    time: '13:05',
+    orderTime: '24 May 2026, 13:05',
+    paymentStatus: 'Pending Payment',
+    paymentMethod: 'PromptPay QR',
+    note: 'System cancelled unpaid order after payment timeout',
+    cancellationReason: 'Payment Timeout',
+    cancellationNote: 'Customer did not complete payment within 10 minutes',
+    cancelledBy: 'System',
+    cancelledAt: '24 May 2026, 13:15',
+    originalOrderStatus: 'Pending Payment',
+    lines: [[1, 2]],
+    timeline: [
+      { status: 'Pending Payment', time: '24 May 2026, 13:05', active: true },
+      { status: 'Auto Cancelled', time: '24 May 2026, 13:15', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260524-104',
+    queueNo: '001',
+    customerName: 'Sudarat L.',
+    customerPhone: '083-444-1024',
+    customerEmail: 'sudarat.l@example.com',
+    branch: 'Siam Square',
+    status: 'Cancelled by Staff',
+    time: '15:30',
+    orderTime: '24 May 2026, 15:30',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Credit Card',
+    note: 'Cancelled before queue call due to equipment issue',
+    cancellationReason: 'Equipment Unavailable',
+    cancelledBy: 'Siri Semsak',
+    cancelledAt: '24 May 2026, 15:38',
+    originalOrderStatus: 'Preparing',
+    originalQueueNo: '001',
+    refundStatus: 'Refund Pending',
+    refundAmount: 180,
+    lines: [[2, 2]],
+    timeline: [
+      { status: 'Pending Payment', time: '24 May 2026, 15:30', active: true },
+      { status: 'Paid', time: '24 May 2026, 15:31', active: true },
+      { status: 'Preparing', time: '24 May 2026, 15:34', active: true },
+      { status: 'Cancelled by Staff', time: '24 May 2026, 15:38', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260523-101',
+    queueNo: '001',
+    customerName: 'Noppadol R.',
+    customerPhone: '086-555-2323',
+    customerEmail: 'noppadol.r@example.com',
+    branch: 'Mega Bangna',
+    status: 'Completed',
+    time: '10:10',
+    orderTime: '23 May 2026, 10:10',
+    paymentStatus: 'Paid',
+    paymentMethod: 'PromptPay QR',
+    lines: [[6, 1], [4, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '23 May 2026, 10:10', active: true },
+      { status: 'Paid', time: '23 May 2026, 10:11', active: true },
+      { status: 'Preparing', time: '23 May 2026, 10:13', active: true },
+      { status: 'Ready For Pickup', time: '23 May 2026, 10:20', active: true },
+      { status: 'Queue Called', time: '23 May 2026, 10:21', active: true },
+      { status: 'Completed', time: '23 May 2026, 10:24', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260522-101',
+    queueNo: '001',
+    customerName: 'Benjawan H.',
+    customerPhone: '081-666-2222',
+    customerEmail: 'benjawan.h@example.com',
+    branch: 'The Mall Korat',
+    status: 'Queue Called',
+    time: '12:40',
+    orderTime: '22 May 2026, 12:40',
+    paymentStatus: 'Paid',
+    paymentMethod: 'PromptPay QR',
+    lines: [[7, 1], [8, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '22 May 2026, 12:40', active: true },
+      { status: 'Paid', time: '22 May 2026, 12:41', active: true },
+      { status: 'Preparing', time: '22 May 2026, 12:44', active: true },
+      { status: 'Ready For Pickup', time: '22 May 2026, 12:51', active: true },
+      { status: 'Queue Called', time: '22 May 2026, 12:52', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260520-101',
+    queueNo: '001',
+    customerName: 'Patsorn Y.',
+    customerPhone: '088-777-2020',
+    customerEmail: 'patsorn.y@example.com',
+    branch: 'Central Plaza',
+    status: 'Preparing',
+    time: '09:30',
+    orderTime: '20 May 2026, 09:30',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Credit Card',
+    lines: [[5, 1], [8, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '20 May 2026, 09:30', active: true },
+      { status: 'Paid', time: '20 May 2026, 09:31', active: true },
+      { status: 'Preparing', time: '20 May 2026, 09:34', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260515-101',
+    queueNo: '001',
+    customerName: 'Jirawat A.',
+    customerPhone: '084-111-1515',
+    customerEmail: 'jirawat.a@example.com',
+    branch: 'Siam Square',
+    status: 'Completed',
+    time: '16:05',
+    orderTime: '15 May 2026, 16:05',
+    paymentStatus: 'Paid',
+    paymentMethod: 'PromptPay QR',
+    lines: [[0, 1], [3, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '15 May 2026, 16:05', active: true },
+      { status: 'Paid', time: '15 May 2026, 16:06', active: true },
+      { status: 'Preparing', time: '15 May 2026, 16:08', active: true },
+      { status: 'Ready For Pickup', time: '15 May 2026, 16:15', active: true },
+      { status: 'Queue Called', time: '15 May 2026, 16:16', active: true },
+      { status: 'Completed', time: '15 May 2026, 16:20', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260505-101',
+    queueNo: '001',
+    customerName: 'Ratchanee P.',
+    customerPhone: '089-555-0505',
+    customerEmail: 'ratchanee.p@example.com',
+    branch: 'Mega Bangna',
+    status: 'Ready For Pickup',
+    time: '18:20',
+    orderTime: '05 May 2026, 18:20',
+    paymentStatus: 'Paid',
+    paymentMethod: 'Credit Card',
+    lines: [[1, 1], [7, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '05 May 2026, 18:20', active: true },
+      { status: 'Paid', time: '05 May 2026, 18:21', active: true },
+      { status: 'Preparing', time: '05 May 2026, 18:23', active: true },
+      { status: 'Ready For Pickup', time: '05 May 2026, 18:30', active: true },
+    ],
+  }),
+  createOrder({
+    id: 'ORD-20260430-101',
+    queueNo: '001',
+    customerName: 'Thitima K.',
+    customerPhone: '081-777-0430',
+    customerEmail: 'thitima.k@example.com',
+    branch: 'The Mall Korat',
+    status: 'Completed',
+    time: '14:15',
+    orderTime: '30 Apr 2026, 14:15',
+    paymentStatus: 'Paid',
+    paymentMethod: 'PromptPay QR',
+    lines: [[3, 1], [4, 1]],
+    timeline: [
+      { status: 'Pending Payment', time: '30 Apr 2026, 14:15', active: true },
+      { status: 'Paid', time: '30 Apr 2026, 14:16', active: true },
+      { status: 'Preparing', time: '30 Apr 2026, 14:18', active: true },
+      { status: 'Ready For Pickup', time: '30 Apr 2026, 14:25', active: true },
+      { status: 'Queue Called', time: '30 Apr 2026, 14:26', active: true },
+      { status: 'Completed', time: '30 Apr 2026, 14:30', active: true },
+    ],
+  }),
 ];
 
 export const INITIAL_INGREDIENTS: Ingredient[] = [
   { id: 'STK-001', name: 'Espresso Beans', type: 'Bean', status: 'In Stock', stockLevel: 85, unit: 'kg', branch: 'Central Plaza', quantity: 8.5, lowThreshold: 5, criticalThreshold: 2, warehouseQty: 40 },
-  { id: 'STK-002', name: 'Premium Milk', type: 'Ingredient', status: 'In Stock', stockLevel: 92, unit: 'liters', branch: 'Central Plaza', quantity: 12, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 60 },
+  { id: 'STK-002', name: 'Premium Milk', type: 'Ingredient', status: 'In Stock', stockLevel: 92, unit: 'liters', branch: 'Central Plaza', quantity: 13, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 60, lastAdded: 2 },
   { id: 'STK-003', name: 'Dark Roast Beans', type: 'Bean', status: 'In Stock', stockLevel: 75, unit: 'kg', branch: 'Siam Square', quantity: 7, lowThreshold: 5, criticalThreshold: 2, warehouseQty: 35 },
   { id: 'STK-004', name: 'Caramel Syrup', type: 'Ingredient', status: 'Low Stock', stockLevel: 25, unit: 'bottle', branch: 'Siam Square', quantity: 6, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 100 },
   { id: 'STK-005', name: 'Vanilla Syrup', type: 'Ingredient', status: 'In Stock', stockLevel: 65, unit: 'bottle', branch: 'Mega Bangna', quantity: 9, lowThreshold: 6, criticalThreshold: 2, warehouseQty: 80 },
   { id: 'STK-006', name: 'Chocolate Sauce', type: 'Ingredient', status: 'Out of Stock', stockLevel: 0, unit: 'bottle', branch: 'The Mall Korat', quantity: 0, lowThreshold: 6, criticalThreshold: 2, warehouseQty: 45 },
-  { id: 'STK-007', name: 'Paper Cups (Hot)', type: 'Packaging', status: 'In Stock', stockLevel: 94, unit: 'boxes', branch: 'Central Plaza', quantity: 120, lowThreshold: 40, criticalThreshold: 15, warehouseQty: 150 },
+  { id: 'STK-007', name: 'Paper Cups (Hot)', type: 'Packaging', status: 'In Stock', stockLevel: 94, unit: 'boxes', branch: 'Central Plaza', quantity: 140, lowThreshold: 40, criticalThreshold: 15, warehouseQty: 150, lastAdded: 20 },
   { id: 'STK-008', name: 'Paper Cups (Cold)', type: 'Packaging', status: 'Low Stock', stockLevel: 18, unit: 'boxes', branch: 'Siam Square', quantity: 18, lowThreshold: 40, criticalThreshold: 15, warehouseQty: 150 },
   { id: 'STK-009', name: 'Whipped Cream', type: 'Ingredient', status: 'In Stock', stockLevel: 88, unit: 'liters', branch: 'Mega Bangna', quantity: 14, lowThreshold: 8, criticalThreshold: 3, warehouseQty: 50 }
 ];
@@ -447,47 +706,36 @@ export const INITIAL_COUPONS: Coupon[] = [
 ];
 
 export const INITIAL_ACTIVITIES: Activity[] = [
-  { id: 'ACT-20260525-0905', time: '25/05/2026 09:05', username: 'admin', role: 'Super Admin', action: 'Created Branch "Central Plaza"', text: 'Created Branch "Central Plaza"', type: 'branch', status: 'New' },
-  { id: 'ACT-20260525-0912', time: '25/05/2026 09:12', username: 'admin', role: 'Super Admin', action: 'Updated Branch "Siam Square"', text: 'Updated Branch "Siam Square"', type: 'branch', status: 'Ready' },
-  { id: 'ACT-20260525-0918', time: '25/05/2026 09:18', username: 'admin', role: 'Super Admin', action: 'Changed Branch Status "Mega Bangna" to Temporary Closed', text: 'Changed Branch Status "Mega Bangna" to Temporary Closed', type: 'branch', status: 'Alert' },
-  { id: 'ACT-20260525-0920', time: '25/05/2026 09:20', username: 'admin', role: 'Super Admin', action: 'Created Branch Manager Account "central.manager"', text: 'Created Branch Manager Account "central.manager"', type: 'staff', status: 'New' },
-  { id: 'ACT-20260525-0930', time: '25/05/2026 09:30', username: 'admin', role: 'Super Admin', action: 'Created Menu "Caramel Macchiato"', text: 'Created Menu "Caramel Macchiato"', type: 'menu', status: 'New' },
-  { id: 'ACT-20260525-0940', time: '25/05/2026 09:40', username: 'admin', role: 'Super Admin', action: 'Updated Menu "Latte"', text: 'Updated Menu "Latte"', type: 'menu', status: 'Ready' },
-  { id: 'ACT-20260525-0948', time: '25/05/2026 09:48', username: 'admin', role: 'Super Admin', action: 'Changed Menu Status "Matcha Latte" to Ready to Sell', text: 'Changed Menu Status "Matcha Latte" to Ready to Sell', type: 'menu', status: 'Ready' },
-  { id: 'ACT-20260525-0955', time: '25/05/2026 09:55', username: 'admin', role: 'Super Admin', action: 'Set Featured Menu "Summer Fruit Coffee"', text: 'Set Featured Menu "Summer Fruit Coffee"', type: 'menu', status: 'Sent' },
-  { id: 'ACT-20260525-1015', time: '25/05/2026 10:15', username: 'central.manager', role: 'Branch Manager', action: 'Started Preparing Order ORD-20260525-205', text: 'Started Preparing Order ORD-20260525-205', type: 'order', status: 'Ready' },
-  { id: 'ACT-20260525-1025', time: '25/05/2026 10:25', username: 'central.manager', role: 'Branch Manager', action: 'Marked Order ORD-20260525-205 as Ready to Serve', text: 'Marked Order ORD-20260525-205 as Ready to Serve', type: 'order', status: 'Ready' },
-  { id: 'ACT-20260525-1027', time: '25/05/2026 10:27', username: 'central.manager', role: 'Branch Manager', action: 'Called Queue Q-002', text: 'Called Queue Q-002', type: 'order', status: 'Sent' },
-  { id: 'ACT-20260525-1028', time: '25/05/2026 10:28', username: 'central.manager', role: 'Branch Manager', action: 'Recalled Queue Q-002', text: 'Recalled Queue Q-002', type: 'order', status: 'Sent' },
-  { id: 'ACT-20260525-1030', time: '25/05/2026 10:30', username: 'central.manager', role: 'Branch Manager', action: 'Completed Order ORD-20260525-205', text: 'Completed Order ORD-20260525-205', type: 'order', status: 'Paid' },
-  { id: 'ACT-20260525-1105', time: '25/05/2026 11:05', username: 'admin', role: 'Super Admin', action: 'Published Promotion "Summer Fruit Coffee"', text: 'Published Promotion "Summer Fruit Coffee"', type: 'promotion', status: 'Sent' },
-  { id: 'ACT-20260525-1115', time: '25/05/2026 11:15', username: 'admin', role: 'Super Admin', action: 'Scheduled Push Notification', text: 'Scheduled Push Notification', type: 'promotion', status: 'Sent' },
-  { id: 'ACT-20260525-1125', time: '25/05/2026 11:25', username: 'admin', role: 'Super Admin', action: 'Cancelled Promotion "Buy 1 Get 1 Croissant"', text: 'Cancelled Promotion "Buy 1 Get 1 Croissant"', type: 'promotion', status: 'Alert' },
-  { id: 'ACT-20260525-1200', time: '25/05/2026 12:00', username: 'admin', role: 'Super Admin', action: 'Created Promotion "Summer Fruit Coffee"', text: 'Created Promotion "Summer Fruit Coffee"', type: 'promotion', status: 'New' },
-  { id: 'ACT-20260525-1240', time: '25/05/2026 12:40', username: 'mega.manager', role: 'Branch Manager', action: 'Cancelled Order ORD-20260525-214. Reason: Ingredient out of stock', text: 'Cancelled Order ORD-20260525-214. Reason: Ingredient out of stock', type: 'order', status: 'Alert' },
-  { id: 'ACT-20260525-1310', time: '25/05/2026 13:10', username: 'admin', role: 'Super Admin', action: 'Exported Member Report', text: 'Exported Member Report', type: 'crm', status: 'Sent' },
-  { id: 'ACT-20260525-1320', time: '25/05/2026 13:20', username: 'admin', role: 'Super Admin', action: 'Updated Branch Manager Account "central.manager"', text: 'Updated Branch Manager Account "central.manager"', type: 'staff', status: 'Ready' },
-  { id: 'ACT-20260525-1330', time: '25/05/2026 13:30', username: 'admin', role: 'Super Admin', action: 'Reset Password for "mega.manager"', text: 'Reset Password for "mega.manager"', type: 'staff', status: 'Alert' },
-  { id: 'ACT-20260525-1340', time: '25/05/2026 13:40', username: 'admin', role: 'Super Admin', action: 'Deleted Branch Manager Account "old.manager"', text: 'Deleted Branch Manager Account "old.manager"', type: 'staff', status: 'Alert' },
-  { id: 'ACT-20260525-1350', time: '25/05/2026 13:50', username: 'mega.manager', role: 'Branch Manager', action: 'Updated Stock "Premium Milk"', text: 'Updated Stock "Premium Milk"', type: 'inventory', status: 'Ready' },
-  { id: 'ACT-20260525-1355', time: '25/05/2026 13:55', username: 'mega.manager', role: 'Branch Manager', action: 'Marked Ingredient "Chocolate Sauce" Out of Stock', text: 'Marked Ingredient "Chocolate Sauce" Out of Stock', type: 'inventory', status: 'Alert' },
-  { id: 'ACT-20260525-1410', time: '25/05/2026 14:10', username: 'system', role: 'System', action: 'Auto Cancelled Order ORD-20260525-201. Reason: Payment timeout', text: 'Auto Cancelled Order ORD-20260525-201. Reason: Payment timeout', type: 'system', status: 'Alert' }
+  { id: 'ACT-20260525-0905', time: '25/05/2026 09:05', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Branch Management', relatedRecordId: 'BR-001', action: 'Created Branch "Central Plaza"', text: 'Created Branch "Central Plaza"', type: 'branch', status: 'New' },
+  { id: 'ACT-20260525-0920', time: '25/05/2026 09:20', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Staff Management', relatedRecordId: 'STF-002', action: 'Created Branch Manager Account "central.manager"', text: 'Created Branch Manager Account "central.manager"', type: 'staff', status: 'New' },
+  { id: 'ACT-20260525-0930', time: '25/05/2026 09:30', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Menu Management', relatedRecordId: 'MENU-001', action: 'Created Menu "Caramel Macchiato"', text: 'Created Menu "Caramel Macchiato"', type: 'menu', status: 'New' },
+  { id: 'ACT-20260525-1001', time: '25/05/2026 10:01', username: 'central.manager', role: 'Branch Manager', assignedBranch: 'Central Plaza', module: 'Daily Stock Check', relatedRecordId: 'STK-007', action: 'Refilled Paper Cups (Hot) +20 boxes', text: 'Refilled Paper Cups (Hot) +20 boxes for Central Plaza', type: 'inventory', status: 'Ready' },
+  { id: 'ACT-20260525-1015', time: '25/05/2026 10:15', username: 'central.manager', role: 'Branch Manager', assignedBranch: 'Central Plaza', module: 'Order Management', relatedRecordId: 'ORD-20260525-202', action: 'Started Preparing Order ORD-20260525-202', text: 'Started Preparing Order ORD-20260525-202', type: 'order', status: 'Ready' },
+  { id: 'ACT-20260525-1027', time: '25/05/2026 10:27', username: 'central.manager', role: 'Branch Manager', assignedBranch: 'Central Plaza', module: 'Order Management', relatedRecordId: 'ORD-20260525-203', action: 'Called Queue Q-003', text: 'Called Queue Q-003 for ORD-20260525-203', type: 'order', status: 'Sent' },
+  { id: 'ACT-20260525-1056', time: '25/05/2026 10:56', username: 'siam.manager', role: 'Branch Manager', assignedBranch: 'Siam Square', module: 'Order Management', relatedRecordId: 'ORD-20260525-206', action: 'Cancelled Order ORD-20260525-206. Reason: Ingredient out of stock', text: 'Cancelled Order ORD-20260525-206. Reason: Ingredient out of stock', type: 'order', status: 'Alert' },
+  { id: 'ACT-20260525-1105', time: '25/05/2026 11:05', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Promotion Management', relatedRecordId: 'PRM-001', action: 'Published Promotion "Summer Fruit Coffee"', text: 'Published Promotion "Summer Fruit Coffee"', type: 'promotion', status: 'Sent' },
+  { id: 'ACT-20260525-1115', time: '25/05/2026 11:15', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Promotion Management', relatedRecordId: 'PRM-002', action: 'Scheduled Promotion Notification - Buy 1 Get 1 Croissant - 01 Jul 2026 08:00', text: 'Scheduled Promotion Notification - Buy 1 Get 1 Croissant - 01 Jul 2026 08:00', type: 'promotion', status: 'Sent' },
+  { id: 'ACT-20260525-1310', time: '25/05/2026 13:10', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'CRM', relatedRecordId: 'CRM-EXPORT-20260525', action: 'Exported Member Report', text: 'Exported Member Report', type: 'crm', status: 'Sent' },
+  { id: 'ACT-20260525-1320', time: '25/05/2026 13:20', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Staff Management', relatedRecordId: 'STF-003', action: 'Updated Branch Manager Account "siam.manager"', text: 'Updated Branch Manager Account "siam.manager"', type: 'staff', status: 'Ready' },
+  { id: 'ACT-20260525-1330', time: '25/05/2026 13:30', username: 'admin', role: 'Super Admin', assignedBranch: 'All Branches', module: 'Branch Management', relatedRecordId: 'BR-003', action: 'Changed Branch Status "Mega Bangna" to Temporarily Closed', text: 'Changed Branch Status "Mega Bangna" to Temporarily Closed', type: 'branch', status: 'Alert' },
+  { id: 'ACT-20260525-1350', time: '25/05/2026 13:50', username: 'mega.manager', role: 'Branch Manager', assignedBranch: 'Mega Bangna', module: 'Inventory', relatedRecordId: 'STK-005', action: 'Updated Stock "Vanilla Syrup"', text: 'Updated Stock "Vanilla Syrup"', type: 'inventory', status: 'Ready' },
+  { id: 'ACT-20260525-1410', time: '25/05/2026 14:10', username: 'system', role: 'System', assignedBranch: 'System', module: 'Order Management', relatedRecordId: 'ORD-20260525-201', action: 'Auto Cancelled Order ORD-20260525-201. Reason: Payment timeout', text: 'Auto Cancelled Order ORD-20260525-201. Reason: Payment timeout', type: 'system', status: 'Alert' }
 ];
 
 export const INITIAL_MEMBERS: Member[] = [
-  { id: 'MEM-001', name: 'Kanyarat Sukprasert', phone: '081-234-5678', email: 'kanyarat@gmail.com', dateOfBirth: '14 Feb 1992', joinDate: '12 Jan 2026', tier: 'Gold', points: 420, totalOrders: 18, totalSpend: 2450 },
-  { id: 'MEM-002', name: 'Piyawat Thongla', phone: '095-888-1234', email: 'piyawat.t@outlook.com', dateOfBirth: '03 Aug 1989', joinDate: '05 Feb 2026', tier: 'Silver', points: 185, totalOrders: 8, totalSpend: 1120 },
-  { id: 'MEM-003', name: 'Supaporn Mega', phone: '062-111-9988', email: 'supaporn.mega@gmail.com', dateOfBirth: '21 Nov 1995', joinDate: '24 Mar 2026', tier: 'Bronze', points: 95, totalOrders: 5, totalSpend: 540 },
-  { id: 'MEM-004', name: 'Natthapon Puanglam', phone: '089-776-5544', email: 'natthapon@central.co.th', dateOfBirth: '09 May 1987', joinDate: '10 Apr 2026', tier: 'Silver', points: 205, totalOrders: 12, totalSpend: 1580 },
-  { id: 'MEM-005', name: 'Waraporn Korat', phone: '084-555-6677', email: 'waraporn.k@koratmail.com', dateOfBirth: '30 Sep 1990', joinDate: '01 May 2026', tier: 'Bronze', points: 65, totalOrders: 3, totalSpend: 380 }
+  { id: 'MEM-001', name: 'Pornpan V.', phone: '082-990-2134', email: 'pornpan.v@gmail.com', dateOfBirth: '14 Feb 1992', joinDate: '12 Jan 2026', tier: 'Bronze', points: 17, totalOrders: 1, totalSpend: 175 },
+  { id: 'MEM-002', name: 'Phitak S.', phone: '083-442-1234', email: 'phitak.s@bangnamail.com', dateOfBirth: '03 Aug 1989', joinDate: '05 Feb 2026', tier: 'Bronze', points: 21, totalOrders: 1, totalSpend: 210 },
+  { id: 'MEM-003', name: 'Chaiwat S.', phone: '084-555-6666', email: 'chaiwat.s@example.com', dateOfBirth: '21 Nov 1995', joinDate: '24 Mar 2026', tier: 'Bronze', points: 17, totalOrders: 1, totalSpend: 175 },
+  { id: 'MEM-004', name: 'Pimchanok R.', phone: '086-118-9200', email: 'pimchanok.r@example.com', dateOfBirth: '09 May 1987', joinDate: '10 Apr 2026', tier: 'Bronze', points: 19, totalOrders: 1, totalSpend: 190 },
+  { id: 'MEM-005', name: 'Waraporn K.', phone: '084-555-6677', email: 'waraporn.k@koratmail.com', dateOfBirth: '30 Sep 1990', joinDate: '01 May 2026', tier: 'Bronze', points: 0, totalOrders: 0, totalSpend: 0 }
 ];
 
 export const INITIAL_STAFF: Staff[] = [
   { id: 'STF-001', name: 'admin', username: 'admin', password: '********', role: 'Super Admin', branch: 'All Branches', email: 'admin@quickcoffee.local', status: 'Active' },
   { id: 'STF-002', name: 'central.manager', username: 'central.manager', password: 'Central@123', role: 'Branch Manager', branch: 'Central Plaza', email: 'central.manager@quickcoffee.com', status: 'Active' },
-  { id: 'STF-003', name: 'Janejira Siri', role: 'Barista', branch: 'Siam Square', email: 'janejira.s@quickcoffee.com', status: 'Active' },
-  { id: 'STF-004', name: 'Wichai Rak', role: 'Barista', branch: 'Central Plaza', email: 'wichai.r@quickcoffee.com', status: 'Inactive' },
-  { id: 'STF-005', name: 'mega.manager', username: 'mega.manager', password: 'Mega@123', role: 'Branch Manager', branch: 'Mega Bangna', email: 'mega.manager@quickcoffee.com', status: 'Active' }
+  { id: 'STF-003', name: 'siam.manager', username: 'siam.manager', password: 'Siam@123', role: 'Branch Manager', branch: 'Siam Square', email: 'siam.manager@quickcoffee.com', status: 'Active' },
+  { id: 'STF-004', name: 'mega.manager', username: 'mega.manager', password: 'Mega@123', role: 'Branch Manager', branch: 'Mega Bangna', email: 'mega.manager@quickcoffee.com', status: 'Active' },
+  { id: 'STF-005', name: 'korat.manager', username: 'korat.manager', password: 'Korat@123', role: 'Branch Manager', branch: 'The Mall Korat', email: 'korat.manager@quickcoffee.com', status: 'Active' }
 ];
 
 const promoImage = (bg: string, fg: string, label: string) =>
@@ -520,7 +768,7 @@ export const INITIAL_PROMOTIONS: Promotion[] = [
     shortDescription: 'Buy one croissant and get one free every Tuesday morning.',
     fullDescription: 'A weekly bakery promotion for customers visiting participating branches during breakfast hours.',
     terms: 'Available every Tuesday from 07:00 to 10:00. One redemption per customer.',
-    status: 'Scheduled',
+    status: 'Scheduled Notification',
     startDate: '2026-07-01',
     endDate: '2026-12-15',
     clicks: 832,
@@ -535,9 +783,11 @@ export const INITIAL_PROMOTIONS: Promotion[] = [
     notificationScheduleType: 'Schedule for Later',
     notificationDate: '2026-07-01',
     notificationTime: '08:00',
+    notificationTimeZone: 'Asia/Bangkok',
     notificationTargetAudience: 'Customers of Selected Branches',
     notificationTargetBranches: ['Siam Square'],
     notificationStatus: 'Scheduled',
+    notificationScheduledAt: '2026-07-01T01:00:00.000Z',
     bannerImage: promoImage('#F4D7A1', '#7B4A12', 'Croissant Deal'),
     detailImage: promoImage('#F4D7A1', '#7B4A12', 'Croissant Deal'),
     thumbnailImage: promoImage('#F4D7A1', '#7B4A12', 'BOGO'),

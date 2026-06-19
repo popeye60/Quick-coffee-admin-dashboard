@@ -67,7 +67,7 @@ export default function Sidebar({
       title: language === 'TH' ? 'การดำเนินงานหน้าร้าน' : 'Store Operations',
       items: [
         { name: 'Orders' as SidebarTab, icon: <Coffee size={17} />, label: language === 'TH' ? 'จัดการออเดอร์' : 'Order Management' },
-        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'ตรวจนับสต็อกประจำวัน' : 'Daily Stock Check' }
+        { name: 'Stock Management' as SidebarTab, icon: <Package size={17} />, label: language === 'TH' ? 'ตรวจนับสต็อก' : 'Stock Check' }
       ]
     },
     {
@@ -117,16 +117,16 @@ export default function Sidebar({
       )}
 
       <aside className={`
-        fixed top-0 bottom-0 left-0 z-50 flex flex-col w-68 bg-white text-stone-600 border-r border-[#E6DFD9] transition-transform duration-300 ease-in-out
+        fixed top-0 bottom-0 left-0 z-50 flex flex-col w-68 bg-white text-stone-600 border-r border-[#dddddd] transition-transform duration-300 ease-in-out
         lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Workspace Brand Header */}
-        <div className="flex items-center gap-3 px-6 py-5 border-b border-[#E6DFD9]">
-          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#8B6B4F] text-white font-bold text-lg shadow-sm">
+        <div className="flex items-center gap-3 px-6 py-5 border-b border-[#dddddd]">
+          <div className="flex items-center justify-center w-10 h-10 rounded-xl bg-[#181d26] text-white font-bold text-lg shadow-sm">
             ☕
           </div>
           <div>
-            <h1 className="font-sans font-extrabold text-[#2E2A25] tracking-wider text-base uppercase">QUICK COFFEE</h1>
+            <h1 className="font-sans font-extrabold text-[#181d26] tracking-wider text-base uppercase">QUICK COFFEE</h1>
             <p className="font-mono text-[9px] text-zinc-400 tracking-widest leading-none mt-1 uppercase">
               {language === 'TH' ? 'มอนิเตอร์แคชเชียร์' : 'Management Portal'}
             </p>
@@ -134,7 +134,7 @@ export default function Sidebar({
         </div>
 
         {/* Portal Role Selector */}
-        <div className="px-4 py-4.5 border-b border-[#E6DFD9] space-y-2.5 bg-stone-50/40">
+        <div className="px-4 py-4.5 border-b border-[#dddddd] space-y-2.5 bg-stone-50/40">
           
           {/* Admin Role selector */}
           <button 
@@ -145,12 +145,12 @@ export default function Sidebar({
             }}
             className={`w-full flex flex-col items-start p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
               roleMode === 'Admin'
-                ? 'bg-[#FDFBF7] border-[#8B6B4F] text-[#8B6B4F] shadow-xs'
+                ? 'bg-[#f8fafc] border-[#181d26] text-[#181d26] shadow-xs'
                 : 'border-transparent text-zinc-500 hover:bg-stone-100 hover:text-zinc-800'
             }`}
           >
             <div className="flex items-center gap-1.5 font-sans font-bold text-[11.5px] tracking-wide uppercase">
-              <Shield size={13} className={roleMode === 'Admin' ? 'text-[#8B6B4F]' : 'text-zinc-400'} />
+              <Shield size={13} className={roleMode === 'Admin' ? 'text-[#181d26]' : 'text-zinc-400'} />
               <span>{adminConsoleTitle}</span>
               {roleMode === 'Admin' && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />}
             </div>
@@ -168,12 +168,12 @@ export default function Sidebar({
             }}
             className={`w-full flex flex-col items-start p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
               roleMode === 'Staff'
-                ? 'bg-[#FDFBF7] border-[#8B6B4F] text-[#8B6B4F] shadow-xs'
+                ? 'bg-[#f8fafc] border-[#181d26] text-[#181d26] shadow-xs'
                 : 'border-transparent text-zinc-500 hover:bg-stone-100 hover:text-zinc-800'
             }`}
           >
             <div className="flex items-center gap-1.5 font-sans font-bold text-[11.5px] tracking-wide uppercase">
-              <Briefcase size={13} className={roleMode === 'Staff' ? 'text-[#8B6B4F]' : 'text-zinc-400'} />
+              <Briefcase size={13} className={roleMode === 'Staff' ? 'text-[#181d26]' : 'text-zinc-400'} />
               <span>{staffConsoleTitle}</span>
               {roleMode === 'Staff' && <span className="ml-auto w-1.5 h-1.5 rounded-full bg-amber-500" />}
             </div>
@@ -184,14 +184,14 @@ export default function Sidebar({
               
               {roleMode === 'Staff' && (
                 <div onClick={(e) => e.stopPropagation()} className="mt-1">
-                  <label className="block text-[8.5px] text-[#8B6B4F] font-mono tracking-wider font-extrabold mb-1">
+                  <label className="block text-[8.5px] text-[#181d26] font-mono tracking-wider font-extrabold mb-1">
                     {language === 'TH' ? 'พนักงานเวียนสาขา:' : 'ASSIGNED STORE:'}
                   </label>
                   <select 
                     id="staff-branch-assigned-selector"
                     value={staffAssignedBranch} 
                     onChange={(e) => setStaffAssignedBranch(e.target.value)}
-                    className="w-full text-xs py-1 px-1.5 font-sans bg-white border border-[#E6DFD9] text-zinc-700 rounded-lg focus:outline-none cursor-pointer font-semibold"
+                    className="w-full text-xs py-1 px-1.5 font-sans bg-white border border-[#dddddd] text-zinc-700 rounded-lg focus:outline-none cursor-pointer font-semibold"
                   >
                     <option value="Central Plaza">Central Plaza</option>
                     <option value="Siam Square">Siam Square</option>
@@ -248,12 +248,12 @@ export default function Sidebar({
                         className={`
                           w-full flex items-center gap-3 px-3 py-2 text-[11.5px] font-sans font-medium transition-all duration-150 text-left rounded-lg cursor-pointer
                           ${isActive 
-                            ? 'bg-[#FDF1E6] text-[#8B6B4F] font-bold shadow-2xs' 
+                            ? 'bg-[#f8fafc] text-[#181d26] font-bold shadow-2xs' 
                             : 'text-zinc-500 hover:bg-stone-50 hover:text-zinc-800'
                           }
                         `}
                       >
-                        <span className={isActive ? 'text-[#8B6B4F]' : 'text-zinc-400 shrink-0'}>
+                        <span className={isActive ? 'text-[#181d26]' : 'text-zinc-400 shrink-0'}>
                           {item.icon}
                         </span>
                         <span className="truncate">{item.label}</span>
@@ -268,12 +268,12 @@ export default function Sidebar({
         </nav>
 
         {/* Current Logger Footer Profile */}
-        <div className="p-4 border-t border-[#E6DFD9] bg-stone-50 flex items-center gap-3 shrink-0">
+        <div className="p-4 border-t border-[#dddddd] bg-stone-50 flex items-center gap-3 shrink-0">
           <div className="relative">
-            <div className="w-9 h-9 rounded-full bg-[#8B6B4F] flex items-center justify-center font-bold text-white shadow-inner bg-gradient-to-tr from-[#3E2723] to-[#8B4513] border border-[#E6DFD9]">
+            <div className="w-9 h-9 rounded-full bg-[#181d26] flex items-center justify-center font-bold text-white shadow-inner bg-gradient-to-tr from-[#181d26] to-[#181d26] border border-[#dddddd]">
               U
             </div>
-            <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-[#A8BB9A] border-2 border-white" />
+            <span className="absolute bottom-0 right-0 block h-2.5 w-2.5 rounded-full bg-[#a8d8c4] border-2 border-white" />
           </div>
           <div className="min-w-0 flex-1 font-sans text-xs">
             <h4 className="font-semibold text-zinc-800 truncate">Siri Semsak</h4>

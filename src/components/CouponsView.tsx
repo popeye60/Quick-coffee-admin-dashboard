@@ -80,9 +80,9 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
     <div className="p-6 space-y-6 font-sans">
       
       {/* Upper header action block */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#E6DFD9] shadow-xs">
+      <div className="flex flex-col sm:flex-row flex-wrap sm:items-center justify-between gap-4 bg-[#FFFFFF] p-4.5 rounded-xl border border-[#dddddd] shadow-xs">
         <div>
-          <h3 className="font-sans font-bold text-sm text-[#2E2A25]">
+          <h3 className="font-sans font-bold text-sm text-[#181d26]">
             {language === 'TH' ? 'ระบบจัดการคูปองส่วนลดสูงสุด (Coupon Management)' : 'Campaign & Coupons Management'}
           </h3>
           <p className="font-sans text-[11px] text-zinc-500">
@@ -93,18 +93,18 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
         <button
           id="coupon-create-new-btn"
           onClick={() => setShowAddModal(true)}
-          className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg font-sans shadow-xs transition-colors flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
+          className="px-3.5 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg font-sans shadow-xs transition-colors flex items-center justify-center gap-1.5 self-start sm:self-auto cursor-pointer"
         >
           <Plus size={14} /> {language === 'TH' ? 'พิมพ์มอบคูปองใหม่' : 'Create Special Coupon'}
         </button>
       </div>
 
       {/* Coupons Table list registry */}
-      <div className="bg-[#FFFFFF] border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs animate-fade-in">
+      <div className="bg-[#FFFFFF] border border-[#dddddd] rounded-xl overflow-hidden shadow-xs animate-fade-in">
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="border-b border-[#E6DFD9] bg-stone-50/50">
+              <tr className="border-b border-[#dddddd] bg-stone-50/50">
                 <th className="py-3 px-4 font-sans text-[11px] font-black text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'รหัสคูปอง / แคมเปญ' : 'Coupon Code & Campaign'}</th>
                 <th className="py-3 px-4 font-sans text-[11px] font-black text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'อัตราสัญชาติส่วนลด' : 'Discount Rate'}</th>
                 <th className="py-3 px-4 font-sans text-[11px] font-black text-zinc-500 uppercase tracking-wider">{language === 'TH' ? 'กรอบเวลาสิทธิ' : 'Validity Dates'}</th>
@@ -123,7 +123,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                     {/* Code & Name Description */}
                     <td className="py-4 px-4 max-w-xs">
                       <div className="flex items-start gap-3">
-                        <div className="p-2.5 bg-[#8B6B4F]/10 text-[#8B6B4F] rounded-lg mt-0.5 pointer-events-none shrink-0">
+                        <div className="p-2.5 bg-[#181d26]/10 text-[#181d26] rounded-lg mt-0.5 pointer-events-none shrink-0">
                           <Ticket size={16} />
                         </div>
                         <div>
@@ -144,10 +144,10 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                     <td className="py-4 px-4 font-mono font-bold text-zinc-800 text-sm">
                       {coupon.discountType === 'percentage' ? (
                         <span className="flex items-center gap-1 text-emerald-800 font-sans font-bold">
-                          <Percent size={13} className="text-[#8B6B4F]" /> {coupon.discountValue}% {language === 'TH' ? 'ลดทันที' : 'Off Total'}
+                          <Percent size={13} className="text-[#181d26]" /> {coupon.discountValue}% {language === 'TH' ? 'ลดทันที' : 'Off Total'}
                         </span>
                       ) : (
-                        <span className="flex items-center gap-1 text-[#8B6B4F] font-sans font-bold">
+                        <span className="flex items-center gap-1 text-[#181d26] font-sans font-bold">
                           <span>฿</span> {formatCurrency(coupon.discountValue)} {language === 'TH' ? 'หักแบนส่วนสูง' : 'Flat Cut'}
                         </span>
                       )}
@@ -160,7 +160,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                         <span>{coupon.startDate || '2026-06-01'}</span>
                       </div>
                       <div className="text-zinc-400 px-3 font-semibold text-[9.5px]">THRU</div>
-                      <div className="flex items-center gap-1 font-sans font-semibold text-[#8B6B4F]">
+                      <div className="flex items-center gap-1 font-sans font-semibold text-[#181d26]">
                         <Calendar size={12} />
                         <span>{coupon.endDate || '2026-06-30'}</span>
                       </div>
@@ -186,9 +186,9 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                           <span className="font-bold text-zinc-800">{coupon.usageCount} utilized</span>
                           <span className="text-zinc-400">{percent}%</span>
                         </div>
-                        <div className="w-full bg-[#E6DFD9]/30 h-1.5 rounded-full overflow-hidden">
+                        <div className="w-full bg-[#dddddd]/30 h-1.5 rounded-full overflow-hidden">
                           <div 
-                            className={`h-full rounded-full transition-all ${coupon.status === 'Active' ? 'bg-[#8B6B4F]' : 'bg-zinc-300'}`}
+                            className={`h-full rounded-full transition-all ${coupon.status === 'Active' ? 'bg-[#181d26]' : 'bg-zinc-300'}`}
                             style={{ width: `${percent}%` }}
                           />
                         </div>
@@ -205,7 +205,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                         {coupon.status === 'Active' ? (
                           <>
                             <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[9.5px]">{language === 'TH' ? 'ใช้งานอยู่' : 'Active'}</span>
-                            <ToggleRight size={22} className="text-[#8B6B4F]" />
+                            <ToggleRight size={22} className="text-[#181d26]" />
                           </>
                         ) : (
                           <>
@@ -248,8 +248,8 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
             className="bg-white border rounded-2xl w-full max-w-lg p-6.5 shadow-2xl space-y-4 font-sans text-xs"
           >
             <div className="flex justify-between items-center text-zinc-800 pb-3 border-b border-zinc-100">
-              <h3 className="font-extrabold text-sm flex items-center gap-1.5 text-[#2E2A25]">
-                <Ticket size={16} className="text-[#8B6B4F]" />
+              <h3 className="font-extrabold text-sm flex items-center gap-1.5 text-[#181d26]">
+                <Ticket size={16} className="text-[#181d26]" />
                 <span>{language === 'TH' ? 'ตั้งค่าเทมเพลตคูปองสาธารณะ' : 'Configure Campaign Promo Code'}</span>
               </h3>
               <button 
@@ -274,7 +274,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                     placeholder="e.g. MONINGBREAD40"
                     value={couponCode}
                     onChange={(e) => setCouponCode(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] uppercase font-mono font-bold text-zinc-800"
+                    className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26] uppercase font-mono font-bold text-zinc-800"
                   />
                 </div>
 
@@ -287,7 +287,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                     placeholder="e.g. Bread Lovers Happy Hour Special"
                     value={couponName}
                     onChange={(e) => setCouponName(e.target.value)}
-                    className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] font-semibold text-zinc-850"
+                    className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26] font-semibold text-zinc-850"
                   />
                 </div>
 
@@ -299,7 +299,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                     placeholder="e.g. Valid on hot bakery items and cold matcha green teas from 08:00 to 11:00 daily."
                     value={couponDescription}
                     onChange={(e) => setCouponDescription(e.target.value)}
-                    className="w-full text-xs p-2 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] font-sans text-zinc-700 min-h-14"
+                    className="w-full text-xs p-2 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26] font-sans text-zinc-700 min-h-14"
                   />
                 </div>
               </div>
@@ -311,7 +311,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                   id="new-coupon-type-dropdown"
                   value={discountType}
                   onChange={(e) => setDiscountType(e.target.value as any)}
-                  className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none text-zinc-600 cursor-pointer"
+                  className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none text-zinc-600 cursor-pointer"
                 >
                   <option value="percentage">{language === 'TH' ? 'เปอร์เซ็นต์ส่วนลด (%)' : 'Percentage (%)'}</option>
                   <option value="fixed">{language === 'TH' ? 'จำนวนเงินบาทคงที่ (฿)' : 'Fixed Baht (฿)'}</option>
@@ -327,7 +327,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                   required
                   value={discountValue}
                   onChange={(e) => setDiscountValue(Number(e.target.value))}
-                  className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none font-mono"
+                  className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none font-mono"
                 />
               </div>
 
@@ -339,7 +339,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                   required
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  className="w-full text-xs p-2 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none cursor-pointer"
+                  className="w-full text-xs p-2 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none cursor-pointer"
                 />
               </div>
 
@@ -350,7 +350,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                   required
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  className="w-full text-xs p-2 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg focus:outline-none cursor-pointer"
+                  className="w-full text-xs p-2 bg-[#f8fafc] border border-[#dddddd] rounded-lg focus:outline-none cursor-pointer"
                 />
               </div>
 
@@ -366,7 +366,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                       required
                       value={limitGlobal}
                       onChange={(e) => setLimitGlobal(Number(e.target.value))}
-                      className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg font-mono focus:outline-none"
+                      className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg font-mono focus:outline-none"
                     />
                   </div>
 
@@ -378,7 +378,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                       required
                       value={limitPerUser}
                       onChange={(e) => setLimitPerUser(Number(e.target.value))}
-                      className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg font-mono focus:outline-none"
+                      className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg font-mono focus:outline-none"
                     />
                   </div>
 
@@ -390,7 +390,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
                       required
                       value={limitDaily}
                       onChange={(e) => setLimitDaily(Number(e.target.value))}
-                      className="w-full text-xs p-2.5 bg-[#FDFBF7] border border-[#E6DFD9] rounded-lg font-mono focus:outline-none"
+                      className="w-full text-xs p-2.5 bg-[#f8fafc] border border-[#dddddd] rounded-lg font-mono focus:outline-none"
                     />
                   </div>
                 </div>
@@ -409,7 +409,7 @@ export default function CouponsView({ coupons, setCoupons }: CouponsViewProps) {
               <button 
                 id="modal-confirm-add-coupon-btn"
                 type="submit"
-                className="px-4 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer"
+                className="px-4 py-1.5 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-lg shadow-xs cursor-pointer"
               >
                 {language === 'TH' ? 'บันทึกสร้างคูปอง' : 'Submit Campaign Code'}
               </button>

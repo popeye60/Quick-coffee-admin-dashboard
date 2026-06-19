@@ -13,6 +13,7 @@ interface StockManagementViewProps {
   isLoading?: boolean;
   error?: string | null;
   onGateChange?: (status: StockGateStatus) => void;
+  onRoundConfirm?: (round: CountRound, branch: string) => void;
 }
 
 type CountRound = 'open' | 'close';
@@ -33,6 +34,18 @@ interface RefillRecord { qty: number; by: string; at: string; }
 // Per-item daily ledger: opening = balance before today's first action; refilled = total added today
 interface DailyEntry { opening: number; refilled: number; }
 interface MovementLog { id: string; kind: 'count' | 'refill'; itemName: string; itemId?: string; qty: number; unit: string; round?: CountRound; user: string; timestamp: string; branch: string; date: string; }
+interface PersistedDailyStockCheck {
+  branchId: string;
+  businessDate: string;
+  stockCheckRound: 'opening';
+  openingStatus: 'pending' | 'completed';
+  checkedItemIds: string[];
+  checks: Record<string, CheckRecord>;
+  confirmedRounds: Record<string, boolean>;
+  dailyLog: Record<string, DailyEntry>;
+  refillRecords: Record<string, RefillRecord>;
+  history: MovementLog[];
+}
 interface WarehouseMasterItem {
   id: string;
   name: string;
@@ -51,10 +64,7 @@ const asNumber = (value: unknown, fallback = 0) => {
   return Number.isFinite(n) ? n : fallback;
 };
 
-function classify(i: Ingredient): StockState {
-  const quantity = asNumber(i.quantity);
-  const criticalThreshold = asNumber(i.criticalThreshold);
-  const lowThreshold = asNumber(i.lowThreshold);
+function classifyQty(quantity: number, lowThreshold: number, criticalThreshold: number): StockState {
   if (quantity <= criticalThreshold) return 'critical';
   if (quantity <= lowThreshold) return 'low';
   return 'normal';
@@ -126,26 +136,48 @@ const itemKey = (name: string, unit: string) => `${name.trim().toLowerCase()}__$
 // App's simulated "today" (matches the dashboard reference date)
 const TODAY = '2026-05-25';
 const YESTERDAY = '2026-05-24';
+const STOCK_SESSION_PREFIX = 'quick-coffee:daily-stock-check';
+const stockCheckKey = (branchId: string, businessDate: string, round: CountRound, itemId: string) => `${branchId}:${businessDate}:${round}:${itemId}`;
+const roundStatusKey = (branchId: string, businessDate: string, round: CountRound) => `${branchId}:${businessDate}:${round}`;
+const stockPersistenceKey = (branchId: string, businessDate: string) => `${STOCK_SESSION_PREFIX}:${branchId}:${businessDate}`;
 
 const INITIAL_CHECKS: Record<string, CheckRecord> = {
-  'open:STK-001': { round: 'open', by: 'Siri S.', at: '08:15, Today', qty: 8.5 },
-  'open:STK-002': { round: 'open', by: 'Siri S.', at: '08:18, Today', qty: 12 },
+  [stockCheckKey('Central Plaza', TODAY, 'open', 'STK-001')]: { round: 'open', by: 'Siri S.', at: '08:15, Today', qty: 0 },
+  [stockCheckKey('Central Plaza', TODAY, 'open', 'STK-002')]: { round: 'open', by: 'Siri S.', at: '08:18, Today', qty: 0 },
+  [stockCheckKey('Central Plaza', TODAY, 'open', 'STK-007')]: { round: 'open', by: 'Siri S.', at: '10:03, Today', qty: 0 },
 };
 // Per-item daily ledger seeded for the two pre-counted items
 const INITIAL_DAILY: Record<string, DailyEntry> = {
-  'STK-001': { opening: 8.5, refilled: 0 },
-  'STK-002': { opening: 10, refilled: 2 },
+  'STK-001': { opening: 9, refilled: 0 },
+  'STK-002': { opening: 11, refilled: 2 },
+  'STK-007': { opening: 120, refilled: 20 },
 };
 const INITIAL_HISTORY: MovementLog[] = [
-  { id: 'CNT-001', kind: 'count', itemName: 'Espresso Beans', itemId: 'STK-001', qty: 8.5, unit: 'kg', round: 'open', user: 'Siri S.', timestamp: '08:15, Today', branch: 'Central Plaza', date: TODAY },
-  { id: 'CNT-002', kind: 'count', itemName: 'Premium Milk', itemId: 'STK-002', qty: 12, unit: 'liters', round: 'open', user: 'Siri S.', timestamp: '08:18, Today', branch: 'Central Plaza', date: TODAY },
+  { id: 'RF-CP-CUPS-001', kind: 'refill', itemName: 'Paper Cups (Hot)', itemId: 'STK-007', qty: 20, unit: 'boxes', user: 'central.manager', timestamp: '10:01, Today', branch: 'Central Plaza', date: TODAY },
+  { id: 'CNT-20260515-KORAT-001', kind: 'count', itemName: 'Chocolate Sauce', itemId: 'STK-006', qty: 2, unit: 'bottle', round: 'close', user: 'korat.manager', timestamp: '20:25, 15 May', branch: 'The Mall Korat', date: '2026-05-15' },
+  { id: 'CNT-20260515-MEGA-001', kind: 'count', itemName: 'Vanilla Syrup', itemId: 'STK-005', qty: 7, unit: 'bottle', round: 'close', user: 'mega.manager', timestamp: '20:18, 15 May', branch: 'Mega Bangna', date: '2026-05-15' },
+  { id: 'RF-20260512-SIAM-001', kind: 'refill', itemName: 'Caramel Syrup', itemId: 'STK-004', qty: 4, unit: 'bottle', user: 'siam.manager', timestamp: '11:10, 12 May', branch: 'Siam Square', date: '2026-05-12' },
+  { id: 'CNT-20260510-CP-001', kind: 'count', itemName: 'Espresso Beans', itemId: 'STK-001', qty: 8.2, unit: 'kg', round: 'close', user: 'central.manager', timestamp: '20:05, 10 May', branch: 'Central Plaza', date: '2026-05-10' },
   { id: 'RF-Y01', kind: 'refill', itemName: 'Premium Milk', itemId: 'STK-002', qty: 2, unit: 'liters', user: 'Siri S.', timestamp: '08:05, 24 May', branch: 'Central Plaza', date: YESTERDAY },
   { id: 'CNT-Y01', kind: 'count', itemName: 'Espresso Beans', itemId: 'STK-001', qty: 9, unit: 'kg', round: 'close', user: 'Siri S.', timestamp: '20:10, 24 May', branch: 'Central Plaza', date: YESTERDAY },
   { id: 'CNT-Y02', kind: 'count', itemName: 'Premium Milk', itemId: 'STK-002', qty: 11, unit: 'liters', round: 'close', user: 'Siri S.', timestamp: '20:12, 24 May', branch: 'Central Plaza', date: YESTERDAY },
+  { id: 'CNT-Y03', kind: 'count', itemName: 'Paper Cups (Hot)', itemId: 'STK-007', qty: 120, unit: 'boxes', round: 'close', user: 'Siri S.', timestamp: '20:20, 24 May', branch: 'Central Plaza', date: YESTERDAY },
 ];
 
+const uniqueHistory = (logs: MovementLog[]) => {
+  const seen = new Set<string>();
+  return logs.filter(log => {
+    if (seen.has(log.id)) return false;
+    seen.add(log.id);
+    return true;
+  });
+};
+
+const dailyStockSessionRecords = new Map<string, PersistedDailyStockCheck>();
+export const resetDailyStockSessionRecords = () => dailyStockSessionRecords.clear();
+
 export default function StockManagementView({
-  ingredients, setIngredients, selectedBranch, setSelectedBranch, roleMode, staffAssignedBranch, isLoading = false, error = null, onGateChange,
+  ingredients, setIngredients, selectedBranch, setSelectedBranch, roleMode, staffAssignedBranch, isLoading = false, error = null, onGateChange, onRoundConfirm,
 }: StockManagementViewProps) {
   const [searchTerm, setSearchTerm]     = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'checked' | 'unchecked' | StockState>('all');
@@ -155,12 +187,15 @@ export default function StockManagementView({
   const [confirmedRounds, setConfirmedRounds] = useState<Record<string, boolean>>({});
   const [refills, setRefills]           = useState<Record<string, RefillRecord>>({});
   const [dailyLog, setDailyLog]         = useState<Record<string, DailyEntry>>(INITIAL_DAILY);
-  const [selectedDate, setSelectedDate] = useState<string>(TODAY);
+  const [selectedDate] = useState<string>(TODAY);
+  const [adminStartDate, setAdminStartDate] = useState<string>(YESTERDAY);
+  const [adminEndDate, setAdminEndDate] = useState<string>(TODAY);
   const [history, setHistory]           = useState<MovementLog[]>(INITIAL_HISTORY);
   const [countInput, setCountInput]     = useState<string>('');
   const [refillInput, setRefillInput]   = useState<string>('');
   const [refillErr, setRefillErr]       = useState<string>('');
   const [showHistory, setShowHistory]   = useState(false);
+  const [loadedPersistenceKey, setLoadedPersistenceKey] = useState('');
   // Add-ingredient-to-branch modal
   const [showAdd, setShowAdd]           = useState(false);
   const [addItemId, setAddItemId]       = useState<string>('');
@@ -180,9 +215,23 @@ export default function StockManagementView({
   const stamp = () => new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) + ', Today';
   const loadError = error || (!hasInventoryList ? t('ข้อมูลสต็อกไม่พร้อมใช้งาน', 'Inventory data is unavailable.') : null);
   const isToday = selectedDate === TODAY;
+  const adminRangeStart = adminStartDate || adminEndDate || TODAY;
+  const adminRangeEnd = adminEndDate || adminStartDate || TODAY;
+  const normalizedAdminStart = adminRangeStart <= adminRangeEnd ? adminRangeStart : adminRangeEnd;
+  const normalizedAdminEnd = adminRangeStart <= adminRangeEnd ? adminRangeEnd : adminRangeStart;
+  const inAdminDateRange = (date: string) => date >= normalizedAdminStart && date <= normalizedAdminEnd;
   const canEdit = isStaff && isToday; // staff edit only the current day; past dates are read-only
-  const checkKey = (round: CountRound, id: string) => `${round}:${id}`;
+  const currentPersistenceKey = stockPersistenceKey(activeBranch, selectedDate);
+  const checkKey = (round: CountRound, id: string) => stockCheckKey(activeBranch, selectedDate, round, id);
   const roundCheck = (round: CountRound, id: string) => checks[checkKey(round, id)] ?? null;
+  const previousStockFromYesterday = (ing: Ingredient) => {
+    const closing = history.find(h => h.date === YESTERDAY && h.branch === ing.branch && h.kind === 'count' && h.round === 'close' && (h.itemId === ing.id || h.itemName === ing.name));
+    return closing ? asNumber(closing.qty) : asNumber(ing.quantity);
+  };
+  const latestActualCount = (ing: Ingredient) => {
+    const count = history.find(h => h.date === selectedDate && h.branch === ing.branch && h.kind === 'count' && (h.itemId === ing.id || h.itemName === ing.name));
+    return count ? { round: (count.round ?? 'open') as CountRound, by: count.user, at: count.timestamp, qty: asNumber(count.qty) } as CheckRecord : null;
+  };
 
   // Per-row daily figures. For TODAY we use the live ledger; for past dates we reconstruct
   // the day's figures from the movement history (counts + refills recorded that date).
@@ -190,12 +239,15 @@ export default function StockManagementView({
     if (isToday) {
       const log = dailyLog[ing.id];
       const check = roundCheck(checkRound, ing.id);
+      const previous = log ? log.opening : previousStockFromYesterday(ing);
+      const refilled = log ? log.refilled : 0;
       return {
-        previous: log ? log.opening : asNumber(ing.quantity),
-        refilled: log ? log.refilled : 0,
-        current: asNumber(ing.quantity),
+        previous,
+        refilled,
+        current: previous + refilled,
         counted: Boolean(check),
         check,
+        latestCount: latestActualCount(ing),
       };
     }
     const dayLogs = history.filter(h => h.date === selectedDate && h.branch === ing.branch && (h.itemId === ing.id || h.itemName === ing.name));
@@ -209,23 +261,61 @@ export default function StockManagementView({
       current,
       counted: Boolean(lastCount),
       check: lastCount ? { round: (lastCount.round ?? 'open') as CountRound, by: lastCount.user, at: lastCount.timestamp, qty: asNumber(lastCount.qty) } as CheckRecord : null,
+      latestCount: lastCount ? { round: (lastCount.round ?? 'open') as CountRound, by: lastCount.user, at: lastCount.timestamp, qty: asNumber(lastCount.qty) } as CheckRecord : null,
     };
   };
 
+  const hasAdminRangeActivity = (ing: Ingredient) =>
+    history.some(h => inAdminDateRange(h.date) && h.branch === ing.branch && (h.itemId === ing.id || h.itemName === ing.name));
+
+  const adminRangeMetrics = (ing: Ingredient) => {
+    const todayIncluded = inAdminDateRange(TODAY);
+    const todayMetrics = todayIncluded ? rowMetrics(ing) : null;
+    const rangeLogs = history.filter(h => inAdminDateRange(h.date) && h.date !== TODAY && h.branch === ing.branch && (h.itemId === ing.id || h.itemName === ing.name));
+    const refilled = rangeLogs.filter(h => h.kind === 'refill').reduce((s, h) => s + asNumber(h.qty), 0) + (todayMetrics?.refilled ?? 0);
+    const counts = rangeLogs.filter(h => h.kind === 'count');
+    const latestHistoricalCount = counts[0] ?? null;
+    const latestCount = todayMetrics?.latestCount ?? (latestHistoricalCount
+      ? { round: (latestHistoricalCount.round ?? 'open') as CountRound, by: latestHistoricalCount.user, at: latestHistoricalCount.timestamp, qty: asNumber(latestHistoricalCount.qty) } as CheckRecord
+      : null);
+    const check = todayMetrics?.check ?? latestCount;
+    const current = todayMetrics
+      ? todayMetrics.current
+      : latestHistoricalCount
+        ? asNumber(latestHistoricalCount.qty)
+        : asNumber(ing.quantity);
+    const previous = todayMetrics
+      ? todayMetrics.previous
+      : latestHistoricalCount
+        ? asNumber(latestHistoricalCount.qty) - refilled
+        : asNumber(ing.quantity) - refilled;
+    return {
+      previous,
+      refilled,
+      current,
+      counted: Boolean(check),
+      check,
+      latestCount,
+    };
+  };
+
+  const displayMetrics = (ing: Ingredient) => isStaff ? rowMetrics(ing) : adminRangeMetrics(ing);
+
   // ── CSV (Excel) export — Admin only ───────────────────────────────────────
   const handleExportCSV = () => {
-    const headers = ['Ingredient', 'Branch', 'Previous Stock Balance', 'Refilled Today', 'Current Stock Balance', 'Unit', 'Status', 'Daily Check Status', 'Date'];
-    const rows = scoped.map(ing => {
-      const m = rowMetrics(ing);
-      const cfg = STATE_CFG[classify(ing)];
+    const headers = ['Ingredient', 'Branch', 'Previous Stock', 'Refilled Today', 'Current Stock', 'Unit', 'Status', 'Check Status', 'Date'];
+    const reportDate = isStaff ? selectedDate : `${normalizedAdminStart} to ${normalizedAdminEnd}`;
+    const rows = filtered.map(ing => {
+      const m = displayMetrics(ing);
+      const cfg = STATE_CFG[classifyQty(m.current, asNumber(ing.lowThreshold), asNumber(ing.criticalThreshold))];
       return [
         `"${ing.name}"`, `"${ing.branch}"`,
         Number.isFinite(m.previous) ? m.previous : '-',
         m.refilled,
         Number.isFinite(m.current) ? m.current : '-',
         ing.unit, cfg.label,
-        m.counted ? `Counted (${m.check?.at ?? ''})` : 'Not counted',
-        selectedDate,
+        m.check ? 'Checked' : 'Not Checked',
+        reportDate,
       ].join(',');
     });
     const csv = [headers.join(','), ...rows].join('\n');
@@ -233,7 +323,7 @@ export default function StockManagementView({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `stock-report_${activeBranch === 'All Branches' ? 'all-branches' : activeBranch}_${selectedDate}.csv`;
+    a.download = `stock-report_${activeBranch === 'All Branches' ? 'all-branches' : activeBranch}_${reportDate.replace(/\s+to\s+/, '_to_')}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -246,19 +336,85 @@ export default function StockManagementView({
   const missingClosing = requiredItems.filter(i => !roundCheck('close', i.id)).map(i => i.name);
   const openingComplete = requiredItems.length > 0 && openingChecked === requiredItems.length;
   const closingComplete = requiredItems.length > 0 && closingChecked === requiredItems.length;
-  const openingConfirmed = Boolean(confirmedRounds[`open:${activeBranch}:${TODAY}`]);
-  const closingConfirmed = Boolean(confirmedRounds[`close:${activeBranch}:${TODAY}`]);
+  const openingConfirmed = Boolean(confirmedRounds[roundStatusKey(activeBranch, selectedDate, 'open')]);
+  const closingConfirmed = Boolean(confirmedRounds[roundStatusKey(activeBranch, selectedDate, 'close')]);
   const activeChecked = checkRound === 'open' ? openingChecked : closingChecked;
   const activeMissing = checkRound === 'open' ? missingOpening : missingClosing;
   const activeComplete = checkRound === 'open' ? openingComplete : closingComplete;
   const activeConfirmed = checkRound === 'open' ? openingConfirmed : closingConfirmed;
-  const currentHour = new Date().getHours();
-  const isOperatingHours = currentHour >= 7 && currentHour < 22;
-  const canRefillStock = canEdit && checkRound === 'open' && isOperatingHours;
+  const storeStatus: 'Opening In Progress' | 'Open' | 'Closing Shift' = checkRound === 'close'
+    ? 'Closing Shift'
+    : openingConfirmed ? 'Open' : 'Opening In Progress';
+  const canRefillStock = canEdit && checkRound === 'open';
+  const canRecordActualCount = canEdit && (checkRound === 'close' || openingConfirmed);
   const refillLocked = canEdit && !canRefillStock;
   const refillLockedMessage = checkRound === 'close'
     ? t('ปิดการเติมสต็อกระหว่างรอบปิดร้าน', 'Refill is disabled during closing stock check.')
-    : t('เติมสต็อกได้เฉพาะช่วงเปิดร้านและเวลาให้บริการเท่านั้น', 'Refill is allowed only during Opening Shift and store operating hours.');
+    : t('เติมสต็อกได้เฉพาะรอบเปิดร้านและระหว่างเวลาให้บริการ', 'Refill is available during Opening Shift and store operating hours.');
+
+  useEffect(() => {
+    const stored = dailyStockSessionRecords.get(currentPersistenceKey);
+    if (!stored) {
+      const isSeededDemoDay = activeBranch === 'Central Plaza' && selectedDate === TODAY;
+      setChecks(isSeededDemoDay ? INITIAL_CHECKS : {});
+      setConfirmedRounds({});
+      setRefills({});
+      setDailyLog(isSeededDemoDay ? INITIAL_DAILY : {});
+      setHistory(INITIAL_HISTORY);
+      setLoadedPersistenceKey(currentPersistenceKey);
+      return;
+    }
+
+    try {
+      const record = stored as Partial<PersistedDailyStockCheck>;
+      const checkedItemIds = Array.isArray(record.checkedItemIds) ? record.checkedItemIds.filter((id): id is string => typeof id === 'string') : [];
+      const fallbackChecks = checkedItemIds.reduce<Record<string, CheckRecord>>((acc, id) => {
+        acc[stockCheckKey(activeBranch, selectedDate, 'open', id)] = { round: 'open', by: currentUser, at: 'Restored', qty: 0 };
+        return acc;
+      }, {});
+      const persistedChecks = record.checks && typeof record.checks === 'object' ? { ...fallbackChecks, ...record.checks } : fallbackChecks;
+      const persistedConfirmed = record.confirmedRounds && typeof record.confirmedRounds === 'object' ? record.confirmedRounds : {};
+      const persistedDaily = record.dailyLog && typeof record.dailyLog === 'object' ? record.dailyLog : {};
+      const persistedRefills = record.refillRecords && typeof record.refillRecords === 'object' ? record.refillRecords : {};
+      const persistedHistory = Array.isArray(record.history) ? record.history : [];
+      const completedKey = roundStatusKey(activeBranch, selectedDate, 'open');
+      setChecks(persistedChecks);
+      setConfirmedRounds({
+        ...persistedConfirmed,
+        ...(record.openingStatus === 'completed' ? { [completedKey]: true } : {}),
+      });
+      setDailyLog(persistedDaily);
+      setRefills(persistedRefills);
+      setHistory(uniqueHistory([...persistedHistory, ...INITIAL_HISTORY]));
+    } catch {
+      setChecks({});
+      setConfirmedRounds({});
+      setDailyLog({});
+      setRefills({});
+      setHistory(INITIAL_HISTORY);
+    } finally {
+      setLoadedPersistenceKey(currentPersistenceKey);
+    }
+  }, [activeBranch, selectedDate, currentPersistenceKey]);
+
+  useEffect(() => {
+    if (loadedPersistenceKey !== currentPersistenceKey) return;
+    const checkedItemIds = requiredItems.filter(i => roundCheck('open', i.id)).map(i => i.id);
+    const branchDateHistory = history.filter(h => h.branch === activeBranch && h.date === selectedDate);
+    const record: PersistedDailyStockCheck = {
+      branchId: activeBranch,
+      businessDate: selectedDate,
+      stockCheckRound: 'opening',
+      openingStatus: openingConfirmed ? 'completed' : 'pending',
+      checkedItemIds,
+      checks,
+      confirmedRounds,
+      dailyLog,
+      refillRecords: refills,
+      history: branchDateHistory,
+    };
+    dailyStockSessionRecords.set(currentPersistenceKey, record);
+  }, [loadedPersistenceKey, currentPersistenceKey, activeBranch, selectedDate, requiredItems, openingConfirmed, checks, confirmedRounds, dailyLog, refills, history]);
 
   useEffect(() => {
     onGateChange?.({
@@ -275,22 +431,30 @@ export default function StockManagementView({
     });
   }, [activeBranch, requiredItems.length, openingChecked, closingChecked, openingComplete, closingComplete, openingConfirmed, closingConfirmed, missingOpening.join('|'), missingClosing.join('|'), onGateChange]);
 
-  const filtered = scoped.filter(ing => {
-    const currentRoundChecked = Boolean(roundCheck(checkRound, ing.id));
+  const dateScoped = scoped.filter(ing => isStaff || inAdminDateRange(TODAY) || hasAdminRangeActivity(ing));
+  const filtered = dateScoped.filter(ing => {
+    const metrics = displayMetrics(ing);
+    const currentRoundChecked = Boolean(metrics.check);
     if (statusFilter === 'checked' && !currentRoundChecked) return false;
     if (statusFilter === 'unchecked' && currentRoundChecked) return false;
-    if ((statusFilter === 'normal' || statusFilter === 'low' || statusFilter === 'critical') && classify(ing) !== statusFilter) return false;
+    if ((statusFilter === 'normal' || statusFilter === 'low' || statusFilter === 'critical') && classifyQty(metrics.current, asNumber(ing.lowThreshold), asNumber(ing.criticalThreshold)) !== statusFilter) return false;
     if (searchTerm && !ing.name.toLowerCase().includes(searchTerm.toLowerCase()) && !ing.type.toLowerCase().includes(searchTerm.toLowerCase())) return false;
     return true;
   });
 
-  const kpiChecked   = scoped.filter(i => roundCheck(checkRound, i.id)).length;
-  const kpiUnchecked = scoped.length - kpiChecked;
-  const kpiLow       = scoped.filter(i => classify(i) === 'low').length;
-  const kpiCritical  = scoped.filter(i => classify(i) === 'critical').length;
+  const kpiChecked   = dateScoped.filter(i => displayMetrics(i).check).length;
+  const kpiUnchecked = dateScoped.length - kpiChecked;
+  const kpiLow       = dateScoped.filter(i => classifyQty(displayMetrics(i).current, asNumber(i.lowThreshold), asNumber(i.criticalThreshold)) === 'low').length;
+  const kpiCritical  = dateScoped.filter(i => classifyQty(displayMetrics(i).current, asNumber(i.lowThreshold), asNumber(i.criticalThreshold)) === 'critical').length;
 
-  const topCritical = safeIngredients.filter(i => classify(i) !== 'normal').sort((a, b) => asNumber(a.quantity) - asNumber(b.quantity)).slice(0, 5);
-  const scopedHistory = history.filter(h => activeBranch === 'All Branches' || h.branch === activeBranch);
+  const topCritical = dateScoped
+    .filter(i => classifyQty(displayMetrics(i).current, asNumber(i.lowThreshold), asNumber(i.criticalThreshold)) !== 'normal')
+    .sort((a, b) => displayMetrics(a).current - displayMetrics(b).current)
+    .slice(0, 5);
+  const scopedHistory = history.filter(h =>
+    (activeBranch === 'All Branches' || h.branch === activeBranch)
+    && (isStaff ? h.date === selectedDate : inAdminDateRange(h.date))
+  );
   const warehouseMasterItems = WAREHOUSE_MASTER_ITEMS.reduce<WarehouseMasterItem[]>((items, master) => {
     const key = itemKey(master.name, master.unit);
     if (items.some(item => itemKey(item.name, item.unit) === key)) return items;
@@ -309,14 +473,21 @@ export default function StockManagementView({
     return item.name.toLowerCase().includes(q) || item.category.toLowerCase().includes(q) || item.unit.toLowerCase().includes(q);
   });
 
-  // ── Daily stock count (records counted quantity in real units) ──────────────
+  // ── Opening checklist / actual stock counts ───────────────────────────────
+  const markOpeningChecked = (id: string) => {
+    const item = safeIngredients.find(i => i.id === id);
+    if (!item || checkRound !== 'open') return;
+    const at = stamp();
+    setDailyLog(prev => prev[id] ? prev : { ...prev, [id]: { opening: previousStockFromYesterday(item), refilled: 0 } });
+    setChecks(prev => ({ ...prev, [checkKey('open', id)]: { round: 'open', by: currentUser, at, qty: 0 } }));
+  };
+
   const submitCount = (id: string, value: number) => {
     const item = safeIngredients.find(i => i.id === id);
-    if (!item || isNaN(value) || value < 0) return;
+    if (!item || !canRecordActualCount || isNaN(value) || value < 0) return;
     const qty = value;
     const at = stamp();
-    setDailyLog(prev => prev[id] ? prev : { ...prev, [id]: { opening: asNumber(item.quantity), refilled: 0 } });
-    setIngredients(prev => prev.map(i => i.id === id ? { ...i, quantity: qty, status: statusFromQty({ quantity: qty, lowThreshold: i.lowThreshold }) } : i));
+    setDailyLog(prev => prev[id] ? prev : { ...prev, [id]: { opening: previousStockFromYesterday(item), refilled: 0 } });
     setChecks(prev => ({ ...prev, [checkKey(checkRound, id)]: { round: checkRound, by: currentUser, at, qty } }));
     setHistory(prev => [{ id: `CNT-${Date.now()}`, kind: 'count', itemName: item.name, itemId: id, qty, unit: item.unit, round: checkRound, user: currentUser, timestamp: at, branch: item.branch, date: TODAY }, ...prev].slice(0, 40));
   };
@@ -331,7 +502,8 @@ export default function StockManagementView({
     if (!qty || qty <= 0) { setRefillErr(t('กรุณากรอกจำนวนที่มากกว่า 0', 'Refill quantity must be greater than 0.')); return; }
     if (qty > warehouseAvail) { setRefillErr(t('จำนวนเกินสต็อกคลังกลาง', 'Cannot refill more than central warehouse stock.')); return; }
     const at = stamp();
-    const newQty = asNumber(item.quantity) + qty;
+    const metrics = rowMetrics(item);
+    const newQty = metrics.previous + metrics.refilled + qty;
     setIngredients(prev => prev.map(i => i.id === id ? {
       ...i,
       quantity: newQty,
@@ -342,7 +514,7 @@ export default function StockManagementView({
     setRefills(prev => ({ ...prev, [id]: { qty, by: currentUser, at } }));
     setDailyLog(prev => {
       const existing = prev[id];
-      return { ...prev, [id]: { opening: existing ? existing.opening : asNumber(item.quantity), refilled: (existing?.refilled ?? 0) + qty } };
+      return { ...prev, [id]: { opening: existing ? existing.opening : metrics.previous, refilled: (existing?.refilled ?? 0) + qty } };
     });
     setHistory(prev => [{ id: `RF-${Date.now()}`, kind: 'refill', itemName: item.name, itemId: id, qty, unit: item.unit, user: currentUser, timestamp: at, branch: item.branch, date: TODAY }, ...prev].slice(0, 40));
     setRefillInput(''); setRefillErr('');
@@ -386,7 +558,7 @@ export default function StockManagementView({
     const next = selectedId === id ? null : id;
     setSelectedId(next);
     const item = safeIngredients.find(i => i.id === id);
-    setCountInput(next && item ? String(item.quantity) : '');
+    setCountInput(next && item ? String(displayMetrics(item).current) : '');
     setRefillInput(''); setRefillErr('');
   };
   const selectedItem = safeIngredients.find(i => i.id === selectedId) ?? null;
@@ -397,11 +569,12 @@ export default function StockManagementView({
   const confirmRound = (round: CountRound) => {
     const complete = round === 'open' ? openingComplete : closingComplete;
     if (!complete) return;
-    setConfirmedRounds(prev => ({ ...prev, [`${round}:${activeBranch}:${TODAY}`]: true }));
+    setConfirmedRounds(prev => ({ ...prev, [roundStatusKey(activeBranch, selectedDate, round)]: true }));
+    onRoundConfirm?.(round, activeBranch);
   };
 
   const tabs: { key: typeof statusFilter; label: string; count: number }[] = [
-    { key: 'all',       label: t('ทั้งหมด', 'All'),               count: scoped.length },
+    { key: 'all',       label: t('ทั้งหมด', 'All'),               count: dateScoped.length },
     { key: 'checked',   label: t('ตรวจแล้ว', 'Counted'),          count: kpiChecked },
     { key: 'unchecked', label: t('ยังไม่ได้ตรวจ', 'Not counted'), count: kpiUnchecked },
     { key: 'low',       label: t('ใกล้หมด', 'Low'),               count: kpiLow },
@@ -411,8 +584,8 @@ export default function StockManagementView({
   return (
     <div className="p-6 space-y-5 font-sans">
       {isLoading && (
-        <div className="bg-white border border-[#E6DFD9] rounded-xl p-4 text-xs font-semibold text-zinc-500 flex items-center gap-2">
-          <Clock size={14} className="text-[#8B6B4F]" /> {t('กำลังโหลดข้อมูลสต็อก...', 'Loading stock records...')}
+        <div className="bg-white border border-[#dddddd] rounded-xl p-4 text-xs font-semibold text-zinc-500 flex items-center gap-2">
+          <Clock size={14} className="text-[#181d26]" /> {t('กำลังโหลดข้อมูลสต็อก...', 'Loading stock records...')}
         </div>
       )}
 
@@ -446,63 +619,57 @@ export default function StockManagementView({
       </div>
 
       {/* Toolbar */}
-      <div className="bg-white p-4 rounded-xl border border-[#E6DFD9] shadow-xs space-y-3">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+      <div className="bg-white p-6 rounded-2xl border border-[#dddddd] shadow-sm space-y-4">
+        <div className="flex flex-col xl:flex-row flex-wrap xl:items-center justify-between gap-4">
           <div>
-            <h3 className="font-bold text-sm text-[#2E2A25]">{t('ตรวจนับสต็อกประจำวัน', 'Daily Stock Count')}</h3>
+            <h3 className="font-black text-lg text-[#181d26]">{t('ตรวจนับสต็อก', 'Stock Check')}</h3>
             <p className="text-[11px] text-zinc-500">
-              {isStaff ? t('ตรวจนับและเติมสต็อกประจำสาขาด้วยหน่วยจริง', 'Count & refill your branch stock in real units')
-                       : t('ติดตามสต็อกทุกสาขา (ดูอย่างเดียว)', 'Monitor branch stock (read-only)')}
+              {isStaff ? t('ตรวจสอบสถานะสต็อก เติมวัตถุดิบ และยืนยันการเปิด-ปิดสาขา', 'Check stock status, refill ingredients, and confirm branch opening or closing.')
+                       : t('ติดตามสถานะสต็อกและประวัติการเคลื่อนไหวของทุกสาขา', 'Monitor stock status and movement history across branches.')}
             </p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
-            {/* Date history picker — both roles can browse past daily records */}
-            <label className="inline-flex items-center gap-1.5 px-2.5 py-1.5 border border-[#E6DFD9] bg-stone-50 rounded-lg text-xs font-semibold text-zinc-600">
-              <CalendarDays size={13} className="text-[#8B6B4F]" />
-              <input id="stock-date-picker" type="date" max={TODAY} value={selectedDate} onChange={e => { setSelectedDate(e.target.value || TODAY); setSelectedId(null); }}
-                className="bg-transparent focus:outline-none text-zinc-700 cursor-pointer" />
-            </label>
             {canEdit && (
-              <div className="inline-flex bg-stone-100 rounded-lg p-0.5">
+              <div className="h-11 inline-flex items-center bg-stone-100 rounded-xl p-0.5 border border-[#dddddd]">
                 {(['open', 'close'] as CountRound[]).map(r => (
                   <button key={r} id={`round-${r}`} onClick={() => setCheckRound(r)}
-                    className={`px-3 py-1.5 text-[11px] font-bold rounded-md transition-all flex items-center gap-1 ${checkRound === r ? 'bg-white text-coffee shadow-xs' : 'text-zinc-500 hover:text-zinc-700'}`}>
+                    className={`h-9 px-3 text-[11px] font-bold rounded-lg transition-all flex items-center gap-1 ${checkRound === r ? 'bg-white text-coffee shadow-xs' : 'text-zinc-500 hover:text-zinc-700'}`}>
                     {r === 'open' ? <Sunrise size={12} /> : <Sunset size={12} />}{roundLabel(r)}
                   </button>
                 ))}
               </div>
             )}
             <button id="stock-view-history-btn" onClick={() => setShowHistory(true)}
-              className="px-3.5 py-1.5 border border-[#E6DFD9] bg-stone-50 hover:bg-stone-100 text-zinc-600 text-xs font-semibold rounded-lg flex items-center gap-1.5">
-              <History size={13} className="text-[#8B6B4F]" /> {t('ประวัติการเคลื่อนไหว', 'Movement History')}
+              className="h-11 px-4 border border-[#dddddd] bg-white hover:bg-stone-50 text-zinc-700 text-xs font-bold rounded-xl flex items-center gap-1.5">
+              <History size={13} className="text-[#181d26]" /> {t('ประวัติการเคลื่อนไหว', 'Movement History')}
             </button>
             {/* Export — Admin only */}
             {!isStaff && (
               <button id="stock-export-btn" onClick={handleExportCSV}
-                className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
+                className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] text-white text-xs font-bold rounded-xl flex items-center gap-1.5">
                 <Download size={14} /> {t('ส่งออก Excel', 'Export Excel')}
               </button>
             )}
             {canEdit && (
               <button id="add-ingredient-btn" disabled={!canRefillStock} onClick={() => { setShowAdd(true); setAddItemId(warehouseMasterItems[0]?.id || ''); setAddSearch(''); setAddQty(''); setAddErr(''); }}
-                className="px-3.5 py-1.5 bg-[#8B6B4F] hover:bg-[#70533C] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center gap-1.5">
+                className="h-11 px-4 bg-[#181d26] hover:bg-[#0d1218] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-xl flex items-center gap-1.5">
                 <PackagePlus size={14} /> {t('เพิ่มวัตถุดิบเข้าสาขา', 'Add Ingredient to Branch')}
               </button>
             )}
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div className="sm:col-span-2">
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
+          <div className={isStaff ? 'md:col-span-8' : 'md:col-span-4'}>
             <input type="text" placeholder={t('ค้นหาวัตถุดิบ...', 'Search ingredients...')} value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-              className="w-full text-xs py-2 px-3 bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]" />
+              className="w-full h-11 text-xs px-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26]" />
           </div>
-          <div>
+          <div className={isStaff ? 'md:col-span-4' : 'md:col-span-2'}>
             {isStaff ? (
-              <div className="w-full text-xs py-2 px-3 bg-zinc-100 border border-[#E6DFD9] rounded-lg text-zinc-600 font-semibold flex items-center gap-1.5">{t('สาขา:', 'Branch:')} {safeStaffBranch}</div>
+              <div className="w-full h-11 text-xs px-3 bg-zinc-100 border border-[#dddddd] rounded-xl text-zinc-600 font-semibold flex items-center gap-1.5">{t('สาขา:', 'Branch:')} {safeStaffBranch}</div>
             ) : (
               <select id="stock-branch-filter" value={selectedBranch} onChange={e => setSelectedBranch(e.target.value as Branch)}
-                className="w-full text-xs py-2 px-3 bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] text-zinc-600 cursor-pointer">
+                className="w-full h-11 text-xs px-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600 cursor-pointer">
                 <option value="All Branches">{t('ทุกสาขา', 'All Branches')}</option>
                 <option value="Central Plaza">Central Plaza</option>
                 <option value="Siam Square">Siam Square</option>
@@ -511,6 +678,32 @@ export default function StockManagementView({
               </select>
             )}
           </div>
+          {!isStaff && (
+            <>
+              <label className="md:col-span-3 relative">
+                <CalendarDays size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#181d26]" />
+                <input
+                  id="stock-start-date-filter"
+                  type="date"
+                  value={adminStartDate}
+                  onChange={e => setAdminStartDate(e.target.value)}
+                  aria-label={t('วันที่เริ่มต้น', 'Start Date')}
+                  className="w-full h-11 text-xs pl-9 pr-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600"
+                />
+              </label>
+              <label className="md:col-span-3 relative">
+                <CalendarDays size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-[#181d26]" />
+                <input
+                  id="stock-end-date-filter"
+                  type="date"
+                  value={adminEndDate}
+                  onChange={e => setAdminEndDate(e.target.value)}
+                  aria-label={t('วันที่สิ้นสุด', 'End Date')}
+                  className="w-full h-11 text-xs pl-9 pr-3 bg-stone-50 border border-[#dddddd] rounded-xl focus:outline-none focus:border-[#181d26] text-zinc-600"
+                />
+              </label>
+            </>
+          )}
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -518,7 +711,7 @@ export default function StockManagementView({
             const active = statusFilter === tab.key;
             return (
               <button key={tab.key} id={`stock-tab-${tab.key}`} onClick={() => setStatusFilter(tab.key)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 ${active ? 'bg-[#8B6B4F] text-white shadow-xs' : 'bg-stone-50 border border-[#E6DFD9] text-zinc-600 hover:bg-stone-100'}`}>
+                className={`h-9 px-3 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 ${active ? 'bg-[#181d26] text-white shadow-xs' : 'bg-stone-50 border border-[#dddddd] text-zinc-600 hover:bg-stone-100'}`}>
                 {tab.label}<span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-full ${active ? 'bg-white/20' : 'bg-stone-200 text-zinc-500'}`}>{tab.count}</span>
               </button>
             );
@@ -528,7 +721,7 @@ export default function StockManagementView({
 
       {isStaff && isToday && (
         <div className={`border rounded-xl p-4 space-y-3 ${activeComplete ? 'bg-emerald-50/50 border-emerald-200' : 'bg-amber-50 border-amber-200'}`}>
-          <div className="flex flex-col md:flex-row md:items-start justify-between gap-3">
+          <div className="flex flex-col md:flex-row flex-wrap md:items-start justify-between gap-3">
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 {checkRound === 'open' ? <Sunrise size={16} className={activeComplete ? 'text-emerald-700' : 'text-amber-700'} /> : <Sunset size={16} className={activeComplete ? 'text-emerald-700' : 'text-amber-700'} />}
@@ -553,9 +746,11 @@ export default function StockManagementView({
                   {t('การเติมสต็อกถูกปิดใช้งานระหว่างรอบปิดร้าน', 'Refill stock is disabled during the closing check.')}
                 </p>
               )}
-              {checkRound === 'open' && !isOperatingHours && (
-                <p className="text-[11px] text-amber-800 font-semibold">
-                  {t('เติมสต็อกได้เฉพาะเวลาให้บริการ 07:00 - 22:00', 'Refill is available only during operating hours, 07:00 - 22:00.')}
+              {checkRound === 'open' && (
+                <p className="text-[11px] text-zinc-600 font-semibold">
+                  {openingConfirmed
+                    ? t(`สถานะร้าน: ${storeStatus} · สามารถบันทึกจำนวนจริงและเติมสต็อกได้`, `Store status: ${storeStatus} · actual counts and refills are available.`)
+                    : t(`สถานะร้าน: ${storeStatus} · เติมสต็อกได้ และเช็กลิสต์ใช้สำหรับยืนยันเปิดร้าน`, `Store status: ${storeStatus} · refills are available, and the checklist controls store opening.`)}
                 </p>
               )}
             </div>
@@ -563,7 +758,7 @@ export default function StockManagementView({
               id={`confirm-${checkRound}-stock-check`}
               disabled={!activeComplete || activeConfirmed}
               onClick={() => confirmRound(checkRound)}
-              className="px-4 py-2 bg-[#8B6B4F] hover:bg-[#70533C] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 shrink-0"
+              className="px-4 py-2 bg-[#181d26] hover:bg-[#0d1218] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5 shrink-0"
             >
               <CheckCircle size={14} />
               {checkRound === 'open' ? t('ยืนยันเปิดร้าน', 'Confirm Store Opening') : t('ยืนยันปิดร้าน', 'Confirm Store Closing')}
@@ -584,7 +779,16 @@ export default function StockManagementView({
       )}
 
       {/* Historical (read-only) banner */}
-      {!isToday && (
+      {!isStaff && (
+        <div className="bg-[#f8fafc]/50 border border-[#dddddd] rounded-xl p-3 text-xs font-semibold text-[#0d1218] flex items-center gap-2">
+          <CalendarDays size={15} className="shrink-0" />
+          {t(
+            `กำลังดูข้อมูลตรวจนับสต็อกช่วง ${normalizedAdminStart} ถึง ${normalizedAdminEnd}`,
+            `Viewing stock check records from ${normalizedAdminStart} to ${normalizedAdminEnd}`
+          )}
+        </div>
+      )}
+      {isStaff && !isToday && (
         <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs font-semibold text-amber-800 flex items-center gap-2">
           <CalendarDays size={15} className="shrink-0" />
           {t(`กำลังดูบันทึกย้อนหลังของวันที่ ${selectedDate} (ดูอย่างเดียว)`, `Viewing historical records for ${selectedDate} (read-only)`)}
@@ -593,18 +797,18 @@ export default function StockManagementView({
 
       {/* Table + Side panel */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-        <div className="lg:col-span-2 bg-white border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs">
+        <div className="lg:col-span-2 bg-white border border-[#dddddd] rounded-xl overflow-hidden shadow-xs">
           <div className="overflow-x-auto min-h-64">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-[#E6DFD9] bg-stone-50/50 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
+                <tr className="border-b border-[#dddddd] bg-stone-50/50 text-[11px] font-bold text-zinc-500 uppercase tracking-wider">
                   <th className="py-2.5 px-3">{t('วัตถุดิบ', 'Ingredient')}</th>
-                  <th className="py-2.5 px-3 text-right">{t('ยอดยกมา', 'Previous Balance')}</th>
+                  <th className="py-2.5 px-3 text-right">{t('ยอดยกมา', 'Previous Stock')}</th>
                   <th className="py-2.5 px-3 text-right">{t('เติมวันนี้', 'Refilled Today')}</th>
-                  <th className="py-2.5 px-3 text-right">{t('คงเหลือปัจจุบัน', 'Current Balance')}</th>
+                  <th className="py-2.5 px-3 text-right">{t('คงเหลือปัจจุบัน', 'Current Stock')}</th>
                   <th className="py-2.5 px-3">{t('หน่วย', 'Unit')}</th>
                   <th className="py-2.5 px-3">{t('สถานะ', 'Status')}</th>
-                  <th className="py-2.5 px-3">{t('การตรวจนับ', 'Daily Check Status')}</th>
+                  <th className="py-2.5 px-3">{t('สถานะการตรวจ', 'Check Status')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-zinc-100 text-xs">
@@ -618,7 +822,7 @@ export default function StockManagementView({
                   </td></tr>
                 ) : filtered.length === 0 ? (
                   <tr><td colSpan={7} className="py-14 text-center">
-                    {scoped.length === 0 ? (
+                    {dateScoped.length === 0 ? (
                       <div className="flex flex-col items-center gap-2 text-zinc-400"><PackagePlus size={28} /><p className="text-sm font-semibold text-zinc-600">{t('ยังไม่มีรายการสต็อกสำหรับสาขานี้', 'No stock records for this branch yet')}</p><p className="text-[11px] text-zinc-400">{t('หน้านี้ยังใช้งานได้แม้ไม่มีข้อมูลสต็อก', 'This page is ready when stock records are added.')}</p></div>
                     ) : (statusFilter === 'low' || statusFilter === 'critical') ? (
                       <div className="flex flex-col items-center gap-2 text-emerald-600"><CheckCircle size={28} /><p className="text-sm font-semibold text-zinc-600">{t('วัตถุดิบทุกอย่างอยู่ในระดับปกติ', 'All ingredients are at normal levels')}</p></div>
@@ -627,14 +831,14 @@ export default function StockManagementView({
                     ) : <p className="text-xs text-zinc-400">{t('ไม่พบวัตถุดิบ', 'No ingredients found.')}</p>}
                   </td></tr>
                 ) : filtered.map(ing => {
-                  const cfg = STATE_CFG[classify(ing)];
-                  const m = rowMetrics(ing);
-                  const chk = m.check;
+                  const m = displayMetrics(ing);
+                  const cfg = STATE_CFG[classifyQty(m.current, asNumber(ing.lowThreshold), asNumber(ing.criticalThreshold))];
                   const active = selectedId === ing.id;
                   const dash = (v: number) => Number.isFinite(v) ? fmtQty(v) : '—';
+                  const canMarkFromRow = canEdit && checkRound === 'open' && !openingConfirmed && !m.check;
                   return (
                     <tr key={ing.id} id={`ingredient-row-${ing.id}`} onClick={() => selectRow(ing.id)}
-                      className={`cursor-pointer transition-colors ${active ? 'bg-[#FDF1E6]/40' : 'hover:bg-stone-50/60'}`}>
+                      className={`cursor-pointer transition-colors ${active ? 'bg-[#f8fafc]/40' : 'hover:bg-stone-50/60'}`}>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
                           <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
@@ -648,11 +852,19 @@ export default function StockManagementView({
                       <td className="py-3 px-3"><span className="text-[10px] text-zinc-400">{ing.unit}</span></td>
                       <td className="py-3 px-3"><span className={`px-2 py-0.5 rounded text-[9.5px] font-bold border ${cfg.badge}`}>{language === 'TH' ? cfg.labelTH : cfg.label}</span></td>
                       <td className="py-3 px-3">
-                        {chk ? (
-                          <div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] font-bold border bg-emerald-50 text-emerald-800 border-emerald-200"><ClipboardCheck size={11} /> {t('ตรวจแล้ว', 'Counted')}</span>
-                            <p className="text-[9.5px] text-zinc-400 mt-1">{chk.at} · {chk.by}</p></div>
+                        {m.check ? (
+                          <div><span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] font-bold border bg-emerald-50 text-emerald-800 border-emerald-200"><ClipboardCheck size={11} /> {t('ตรวจแล้ว', 'Checked')}</span>
+                            <p className="text-[9.5px] text-zinc-400 mt-1">{m.check.at} · {m.check.by}</p></div>
+                        ) : canMarkFromRow ? (
+                          <button
+                            type="button"
+                            onClick={e => { e.stopPropagation(); markOpeningChecked(ing.id); }}
+                            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] font-bold border bg-zinc-50 text-zinc-600 border-zinc-200 hover:bg-emerald-50 hover:text-emerald-800 hover:border-emerald-200"
+                          >
+                            <Clock size={11} /> {t('ยังไม่ได้ตรวจ', 'Not Checked')}
+                          </button>
                         ) : (
-                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] font-bold border bg-zinc-50 text-zinc-500 border-zinc-200"><Clock size={11} /> {isToday ? t('ยังไม่ได้ตรวจวันนี้', 'Not counted today') : t('ไม่มีบันทึก', 'No record')}</span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[9.5px] font-bold border bg-zinc-50 text-zinc-500 border-zinc-200"><Clock size={11} /> {t('ยังไม่ได้ตรวจ', 'Not Checked')}</span>
                         )}
                       </td>
                     </tr>
@@ -664,16 +876,19 @@ export default function StockManagementView({
         </div>
 
         {/* Side panel */}
-        <div className="bg-white border border-[#E6DFD9] rounded-xl overflow-hidden shadow-xs self-start">
+        <div className="bg-white border border-[#dddddd] rounded-xl overflow-hidden shadow-xs self-start">
           {selectedItem ? (() => {
-            const cfg = STATE_CFG[classify(selectedItem)];
-            const chk = roundCheck(checkRound, selectedItem.id);
+            const selectedMetrics = displayMetrics(selectedItem);
+            const cfg = STATE_CFG[classifyQty(selectedMetrics.current, asNumber(selectedItem.lowThreshold), asNumber(selectedItem.criticalThreshold))];
+            const chk = selectedMetrics.latestCount;
             const rfl = refills[selectedItem.id];
             const warehouseAvail = asNumber(selectedItem.warehouseQty);
             const warehouseEmpty = warehouseAvail <= 0;
+            const refillQty = Number(refillInput);
+            const refillQtyValid = Number.isFinite(refillQty) && refillQty > 0 && refillQty <= warehouseAvail;
             return (
               <div>
-                <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9] flex items-start justify-between gap-2">
+                <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd] flex items-start justify-between gap-2">
                   <div><h3 className="font-bold text-sm text-zinc-900">{selectedItem.name}</h3>
                     <p className="text-[10px] text-zinc-400 mt-0.5">{selectedItem.type}{' · '}{selectedItem.branch}</p></div>
                   <button onClick={() => setSelectedId(null)} className="text-zinc-400 hover:text-zinc-600 shrink-0"><X size={14} /></button>
@@ -686,10 +901,10 @@ export default function StockManagementView({
                       <span className="font-mono text-[10px] text-zinc-400 uppercase tracking-wider">{t('ยอดคงเหลือปัจจุบัน', 'Current Stock Balance')}</span>
                       <span className={`px-2 py-0.5 rounded text-[9.5px] font-bold border ${cfg.badge}`}>{language === 'TH' ? cfg.labelTH : cfg.label}</span>
                     </div>
-                    <div className="flex items-end gap-2"><span className="font-black text-3xl text-zinc-900 leading-none">{fmtQty(selectedItem.quantity)}</span><span className="text-zinc-400 font-mono text-sm mb-0.5">{selectedItem.unit}</span></div>
+                    <div className="flex items-end gap-2"><span className="font-black text-3xl text-zinc-900 leading-none">{fmtQty(selectedMetrics.current)}</span><span className="text-zinc-400 font-mono text-sm mb-0.5">{selectedItem.unit}</span></div>
                     <div className="flex items-center justify-between pt-2 border-t border-zinc-200/70">
                       <span className="text-zinc-500 flex items-center gap-1"><Warehouse size={11} />{t('คลังกลางคงเหลือ', 'Central Warehouse Available')}</span>
-                      <span className={`font-mono font-bold ${warehouseEmpty ? 'text-red-600' : 'text-[#8B6B4F]'}`}>{fmtQty(selectedItem.warehouseQty)} {selectedItem.unit}</span>
+                      <span className={`font-mono font-bold ${warehouseEmpty ? 'text-red-600' : 'text-[#181d26]'}`}>{fmtQty(selectedItem.warehouseQty)} {selectedItem.unit}</span>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-zinc-500">{t('จำนวนเติมล่าสุด', 'Last Refill Quantity')}</span>
@@ -717,25 +932,26 @@ export default function StockManagementView({
 
                   {/* Action sections */}
                   {canEdit ? (<>
-                    {/* Daily Count Result */}
-                    <div className="p-3 border border-[#8B6B4F]/20 rounded-xl bg-[#FDF1E6]/30 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <span className="font-mono text-[9px] text-[#8B6B4F] uppercase tracking-wider font-extrabold">{t('บันทึกผลตรวจนับ', 'Daily Count Result')}</span>
-                        <span className="text-[9.5px] font-bold text-[#8B6B4F] flex items-center gap-1">{checkRound === 'open' ? <Sunrise size={11} /> : <Sunset size={11} />}{roundLabel(checkRound)}</span>
-                      </div>
-                      <p className="text-[10px] text-zinc-500 leading-snug">{t('บันทึกจำนวนสต็อกที่นับได้จริง', 'Record the current counted stock.')}</p>
-                      <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่นับได้', 'Counted Quantity')}</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <input id="count-input" type="number" min={0} step="any" value={countInput} onChange={e => setCountInput(e.target.value)}
-                            className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]" placeholder="0" />
-                          <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
+                    {checkRound === 'open' && openingConfirmed && canRecordActualCount && (
+                      <div className="p-3 border border-[#181d26]/20 rounded-xl bg-[#f8fafc]/30 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] text-[#181d26] uppercase tracking-wider font-extrabold">{t('บันทึกจำนวนจริง', 'Record Actual Count')}</span>
+                          <span className="text-[9.5px] font-bold text-[#181d26] flex items-center gap-1"><Sunrise size={11} />{roundLabel(checkRound)}</span>
                         </div>
-                      </label>
-                      <button id="submit-count-btn" disabled={countInput === ''} onClick={() => submitCount(selectedItem.id, Number(countInput))}
-                        className="w-full py-2.5 bg-[#8B6B4F] hover:bg-[#70533C] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
-                        <ClipboardCheck size={13} /> {t('บันทึกผลตรวจนับ', 'Save Count Result')}
-                      </button>
-                    </div>
+                        <p className="text-[10px] text-zinc-500 leading-snug">{t('บันทึกจำนวนที่นับได้จริงระหว่างเวลาทำการ โดยไม่เปลี่ยนยอดคงเหลือปัจจุบัน', 'Record the actual counted stock during operating hours without changing current stock.')}</p>
+                        <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่นับได้', 'Counted Quantity')}</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <input id="count-input" type="number" min={0} step="any" value={countInput} onChange={e => setCountInput(e.target.value)}
+                              className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26]" placeholder="0" />
+                            <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
+                          </div>
+                        </label>
+                        <button id="submit-count-btn" disabled={countInput === ''} onClick={() => submitCount(selectedItem.id, Number(countInput))}
+                          className="w-full py-2.5 bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+                          <ClipboardCheck size={13} /> {t('บันทึกจำนวนจริง', 'Save Actual Count')}
+                        </button>
+                      </div>
+                    )}
 
                     {checkRound === 'open' && (
                       <div className={`p-3 border rounded-xl space-y-2.5 ${!canRefillStock ? 'border-zinc-200 bg-zinc-50' : 'border-sky-200 bg-sky-50/40'}`}>
@@ -749,16 +965,58 @@ export default function StockManagementView({
                         <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่จะเติม', 'Refill Quantity')}</span>
                           <div className="mt-1 flex items-center gap-2">
                             <input id="refill-input" type="number" min={1} step="any" disabled={warehouseEmpty || !canRefillStock} value={refillInput} onChange={e => { setRefillInput(e.target.value); setRefillErr(''); }}
-                              className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-sky-500 disabled:bg-stone-100" placeholder="0" />
+                              className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-sky-500 disabled:bg-stone-100" placeholder="0" />
                             <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
                           </div>
                         </label>
                         {warehouseEmpty && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{t('คลังกลางไม่มีสินค้าคงเหลือ', 'Central warehouse stock is empty.')}</p>}
                         {refillErr && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{refillErr}</p>}
-                        <button id="submit-refill-btn" disabled={warehouseEmpty || !canRefillStock || refillInput === ''} onClick={() => submitRefill(selectedItem.id)}
+                        <button id="submit-refill-btn" disabled={warehouseEmpty || !canRefillStock || !refillQtyValid} onClick={() => submitRefill(selectedItem.id)}
                           className="w-full py-2.5 bg-sky-600 hover:bg-sky-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
                           <PackagePlus size={13} /> {t('เติมสต็อก', 'Refill Stock')}
                         </button>
+                      </div>
+                    )}
+
+                    {checkRound === 'open' && !openingConfirmed ? (
+                      <div className="p-3 border border-emerald-200 rounded-xl bg-emerald-50/50 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] text-emerald-800 uppercase tracking-wider font-extrabold">{t('เช็กลิสต์เปิดร้าน', 'Opening Checklist')}</span>
+                          <span className="text-[9.5px] font-bold text-emerald-800 flex items-center gap-1"><Sunrise size={11} />{roundLabel(checkRound)}</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-600 leading-snug">{t('ยืนยันว่ารายการนี้ถูกตรวจสอบแล้ว ไม่ต้องกรอกจำนวนจริงก่อนเปิดร้าน', 'Confirm this item has been checked. No actual quantity is entered before opening.')}</p>
+                        <button
+                          id="mark-opening-checked-btn"
+                          disabled={Boolean(roundCheck('open', selectedItem.id))}
+                          onClick={() => markOpeningChecked(selectedItem.id)}
+                          className="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-100 disabled:text-emerald-700 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5"
+                        >
+                          <ClipboardCheck size={13} /> {roundCheck('open', selectedItem.id) ? t('ตรวจแล้ว', 'Checked') : t('ทำเครื่องหมายว่าตรวจแล้ว', 'Mark as Checked')}
+                        </button>
+                      </div>
+                    ) : checkRound === 'close' && canRecordActualCount && (
+                      <div className="p-3 border border-[#181d26]/20 rounded-xl bg-[#f8fafc]/30 space-y-2.5">
+                        <div className="flex items-center justify-between">
+                          <span className="font-mono text-[9px] text-[#181d26] uppercase tracking-wider font-extrabold">{t('บันทึกสต็อกปิดร้าน', 'Record Closing Count')}</span>
+                          <span className="text-[9.5px] font-bold text-[#181d26] flex items-center gap-1"><Sunset size={11} />{roundLabel(checkRound)}</span>
+                        </div>
+                        <p className="text-[10px] text-zinc-500 leading-snug">{t('กรอกจำนวนคงเหลือจริงก่อนปิดร้าน จำนวนนี้จะเป็นยอดยกมาของวันถัดไป', 'Enter the actual remaining stock before closing. This becomes the next day previous stock.')}</p>
+                        <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่นับได้', 'Counted Quantity')}</span>
+                          <div className="mt-1 flex items-center gap-2">
+                            <input id="count-input" type="number" min={0} step="any" value={countInput} onChange={e => setCountInput(e.target.value)}
+                              className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26]" placeholder="0" />
+                            <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{selectedItem.unit}</span>
+                          </div>
+                        </label>
+                        <button id="submit-count-btn" disabled={countInput === ''} onClick={() => submitCount(selectedItem.id, Number(countInput))}
+                          className="w-full py-2.5 bg-[#181d26] hover:bg-[#0d1218] disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+                          <ClipboardCheck size={13} /> {t('บันทึกสต็อกปิดร้าน', 'Save Closing Count')}
+                        </button>
+                      </div>
+                    )}
+                    {checkRound === 'close' && (
+                      <div className="p-3 bg-zinc-50 border border-zinc-200 rounded-xl text-center text-zinc-500 text-[11px] font-semibold">
+                        {t('ปิดการเติมสต็อกระหว่างรอบปิดร้าน', 'Refill Stock is disabled during Closing Shift.')}
                       </div>
                     )}
                   </>) : (
@@ -774,21 +1032,23 @@ export default function StockManagementView({
           })() : isStaff ? (
             <div className="p-8 text-center text-zinc-400 text-xs space-y-2"><ClipboardCheck size={36} className="text-zinc-200 mx-auto" />
               <p className="font-semibold text-zinc-500">{t('ยังไม่ได้เลือกรายการ', 'No Item Selected')}</p>
-              <p className="text-[10px] text-zinc-400">{scoped.length === 0 ? t('ยังไม่มีรายการสต็อกสำหรับสาขานี้', 'No stock records for this branch yet.') : t('คลิกรายการเพื่อตรวจนับหรือเติมสต็อก', 'Click a row to count or refill stock.')}</p></div>
+              <p className="text-[10px] text-zinc-400">{scoped.length === 0 ? t('ยังไม่มีรายการสต็อกสำหรับสาขานี้', 'No stock records for this branch yet.') : t('คลิกรายการเพื่อเช็ก บันทึกจำนวนจริง หรือเติมสต็อก', 'Click a row to check, record actual count, or refill stock.')}</p></div>
           ) : (
             <div>
-              <div className="p-4 bg-[#FDFBF7] border-b border-[#E6DFD9] flex items-center gap-2"><AlertTriangle size={15} className="text-red-500 shrink-0" />
+              <div className="p-4 bg-[#f8fafc] border-b border-[#dddddd] flex items-center gap-2"><AlertTriangle size={15} className="text-red-500 shrink-0" />
                 <div><h3 className="font-bold text-sm text-zinc-900">{t('รายการวิกฤตทุกสาขา', 'Top Critical Items')}</h3><p className="text-[10px] text-zinc-400">{t('สต็อกต่ำสุดทั้งระบบ', 'Lowest stock across all branches')}</p></div></div>
               {topCritical.length === 0 ? (
                 <div className="p-8 text-center flex flex-col items-center gap-2 text-emerald-600"><CheckCircle size={28} /><p className="text-sm font-semibold text-zinc-600">{t('วัตถุดิบทุกอย่างอยู่ในระดับปกติ', 'All ingredients are at normal levels')}</p></div>
               ) : (
                 <div className="divide-y divide-zinc-50">{topCritical.map(item => {
-                  const cfg = STATE_CFG[classify(item)];
+                  const metrics = displayMetrics(item);
+                  const state = classifyQty(metrics.current, asNumber(item.lowThreshold), asNumber(item.criticalThreshold));
+                  const cfg = STATE_CFG[state];
                   return (
                     <button key={item.id} onClick={() => setSelectedId(item.id)} className="w-full text-left px-4 py-3 flex items-center justify-between gap-3 hover:bg-stone-50">
                       <div className="flex items-center gap-2 min-w-0"><span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
                         <div className="min-w-0"><p className="font-bold text-xs text-zinc-800 truncate">{item.name}</p><p className="text-[9.5px] text-zinc-400">{item.branch}</p></div></div>
-                      <span className={`font-mono font-black text-sm shrink-0 ${classify(item) === 'critical' ? 'text-red-600' : 'text-orange-600'}`}>{fmtQty(item.quantity)} {item.unit}</span>
+                      <span className={`font-mono font-black text-sm shrink-0 ${state === 'critical' ? 'text-red-600' : 'text-orange-600'}`}>{fmtQty(metrics.current)} {item.unit}</span>
                     </button>
                   );
                 })}</div>
@@ -802,8 +1062,8 @@ export default function StockManagementView({
       {showAdd && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-xs p-4" onClick={() => setShowAdd(false)}>
           <div className="w-full max-w-sm bg-white rounded-2xl shadow-2xl animate-fade-in" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-[#E6DFD9] flex items-center justify-between">
-              <div className="flex items-center gap-2"><PackagePlus size={16} className="text-[#8B6B4F]" /><h3 className="font-bold text-sm text-zinc-800">{t('เพิ่มวัตถุดิบเข้าสาขา', 'Add Ingredient to Branch')}</h3></div>
+            <div className="p-4 border-b border-[#dddddd] flex items-center justify-between">
+              <div className="flex items-center gap-2"><PackagePlus size={16} className="text-[#181d26]" /><h3 className="font-bold text-sm text-zinc-800">{t('เพิ่มวัตถุดิบเข้าสาขา', 'Add Ingredient to Branch')}</h3></div>
               <button onClick={() => setShowAdd(false)} className="text-zinc-400 hover:text-zinc-700"><X size={18} /></button>
             </div>
             <div className="p-4 space-y-3 text-xs">
@@ -819,10 +1079,10 @@ export default function StockManagementView({
                   setAddItemId(next?.id || '');
                 }}
                   placeholder={t('ค้นหาวัตถุดิบในคลังกลาง...', 'Search central warehouse inventory...')}
-                  className="mt-1 w-full text-xs py-2 px-3 bg-stone-50 border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]" />
+                  className="mt-1 w-full text-xs py-2 px-3 bg-stone-50 border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26]" />
               </label>
               <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('วัตถุดิบจากคลังกลาง', 'Central warehouse ingredient')}</span>
-                <select value={addItemId} onChange={e => { setAddItemId(e.target.value); setAddErr(''); }} className="mt-1 w-full text-xs py-2 px-3 bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F]">
+                <select value={addItemId} onChange={e => { setAddItemId(e.target.value); setAddErr(''); }} className="mt-1 w-full text-xs py-2 px-3 bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26]">
                   {filteredWarehouseItems.length === 0 ? (
                     <option value="">{t('ไม่พบวัตถุดิบในคลังกลาง', 'No warehouse items found')}</option>
                   ) : filteredWarehouseItems.map(i => <option key={i.id} value={i.id}>{i.name} · {i.category} · {i.unit}</option>)}
@@ -832,7 +1092,7 @@ export default function StockManagementView({
                   <div className="p-2.5 bg-stone-50 rounded-lg"><p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('ชื่อวัตถุดิบ', 'Ingredient')}</p><p className="font-bold text-sm text-zinc-800">{addItem.name}</p></div>
                   <div className="p-2.5 bg-stone-50 rounded-lg"><p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('หมวด', 'Category')}</p><p className="font-bold text-sm text-zinc-800">{addItem.category}</p></div>
                   <div className="p-2.5 bg-stone-50 rounded-lg"><p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('หน่วย', 'Unit')}</p><p className="font-bold text-sm text-zinc-800">{addItem.unit}</p></div>
-                  <div className="p-2.5 bg-[#FDF1E6]/50 rounded-lg"><p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('คลังกลางคงเหลือ', 'Warehouse Avail.')}</p><p className="font-black text-sm text-[#8B6B4F]">{fmtQty(addItem.warehouseQty)} {addItem.unit}</p></div>
+                  <div className="p-2.5 bg-[#f8fafc]/50 rounded-lg"><p className="text-[9px] uppercase font-bold text-zinc-400 font-mono">{t('คลังกลางคงเหลือ', 'Warehouse Avail.')}</p><p className="font-black text-sm text-[#181d26]">{fmtQty(addItem.warehouseQty)} {addItem.unit}</p></div>
                   <div className="col-span-2 p-2.5 bg-emerald-50/60 rounded-lg border border-emerald-100"><p className="text-[9px] uppercase font-bold text-emerald-700 font-mono">{t('สต็อกสาขาปัจจุบัน', 'Current Branch Quantity')}</p><p className="font-black text-sm text-emerald-800">{fmtQty(addBranchQty)} {addItem.unit}</p></div>
                 </div>
               )}
@@ -840,15 +1100,15 @@ export default function StockManagementView({
               <label className="block"><span className="text-[10px] text-zinc-500 font-semibold">{t('จำนวนที่จะเพิ่มเข้าสาขา', 'Quantity to Add to Branch')}</span>
                 <div className="mt-1 flex items-center gap-2">
                   <input type="number" min={1} step="any" disabled={!addItem || addIsDuplicate || addItem.warehouseQty <= 0} value={addQty} onChange={e => { setAddQty(e.target.value); setAddErr(''); }}
-                    className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#E6DFD9] rounded-lg focus:outline-none focus:border-[#8B6B4F] disabled:bg-stone-100" placeholder="0" />
+                    className="flex-1 text-sm py-2 px-3 font-mono font-bold bg-white border border-[#dddddd] rounded-lg focus:outline-none focus:border-[#181d26] disabled:bg-stone-100" placeholder="0" />
                   <span className="text-xs font-bold text-zinc-500 shrink-0 w-14">{addItem?.unit}</span>
                 </div></label>
               {addItem && addItem.warehouseQty <= 0 && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{t('คลังกลางไม่มีสินค้าเพียงพอ', 'No stock available in central warehouse.')}</p>}
               {addErr && <p className="text-[11px] text-red-600 flex items-center gap-1"><AlertCircle size={12} />{addErr}</p>}
             </div>
-            <div className="p-4 border-t border-[#E6DFD9]">
+            <div className="p-4 border-t border-[#dddddd]">
               <button id="confirm-add-btn" disabled={!addItem || addIsDuplicate || addItem.warehouseQty <= 0} onClick={submitAdd}
-                className="w-full py-2.5 bg-[#8B6B4F] hover:bg-[#70533C] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
+                className="w-full py-2.5 bg-[#181d26] hover:bg-[#0d1218] disabled:bg-zinc-300 disabled:cursor-not-allowed text-white text-xs font-bold rounded-lg flex items-center justify-center gap-1.5">
                 <PackagePlus size={13} /> {t('เพิ่มเข้าสต็อกสาขา', 'Add to Branch Stock')}
               </button>
             </div>
@@ -860,8 +1120,8 @@ export default function StockManagementView({
       {showHistory && (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/40 backdrop-blur-xs" onClick={() => setShowHistory(false)}>
           <div className="w-full max-w-md h-full bg-white shadow-2xl flex flex-col animate-fade-in" onClick={e => e.stopPropagation()}>
-            <div className="p-4 border-b border-[#E6DFD9] flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2"><ClipboardList size={16} className="text-[#8B6B4F]" />
+            <div className="p-4 border-b border-[#dddddd] flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2"><ClipboardList size={16} className="text-[#181d26]" />
                 <div><h3 className="font-bold text-sm text-zinc-800">{t('ประวัติการเคลื่อนไหวสต็อก', 'Stock Movement History')}</h3>
                   <p className="text-[11px] text-zinc-400">{isStaff ? `${t('สาขา', 'Branch')}: ${staffAssignedBranch}` : t('ทุกสาขา', 'All branches')}</p></div></div>
               <button onClick={() => setShowHistory(false)} className="text-zinc-400 hover:text-zinc-700"><X size={18} /></button>
@@ -878,7 +1138,7 @@ export default function StockManagementView({
                     <div className="min-w-0">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span className="font-bold text-xs text-zinc-800">{e.itemName}</span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${e.kind === 'refill' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-[#FDF1E6] text-[#8B6B4F] border-[#E6DFD9]'}`}>{e.kind === 'refill' ? t('เติมจากคลัง', 'Refill') : roundLabel(e.round!)}</span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${e.kind === 'refill' ? 'bg-sky-50 text-sky-700 border-sky-200' : 'bg-[#f8fafc] text-[#181d26] border-[#dddddd]'}`}>{e.kind === 'refill' ? t('เติมจากคลัง', 'Refill') : roundLabel(e.round!)}</span>
                       </div>
                       <p className="text-[10px] text-zinc-400 mt-0.5">{e.branch} · {e.timestamp} · {e.user}</p>
                     </div>

@@ -1,30 +1,153 @@
 @import "tailwindcss";
 
+/* Inter Display is the design-system's endorsed substitute for Haas Grotesk / Haas Groot Disp.
+   JetBrains Mono is retained for tabular numerics in data-dense admin tables. */
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;705;800&display=swap');
 
 @theme {
-  --color-coffee: #3E2723;
-  --color-coffee-accent: #8B4513;
-  --color-coffee-border: #E5E1DA;
-  --color-coffee-bg: #FAF9F6;
-  --color-coffee-muted: #8C8479;
-  --color-coffee-light: #FDF1E6;
-  
+  /* ── Airtable design system tokens ───────────────────────────────── */
+  /* Brand / ink — black IS the primary throughout the system */
+  --color-primary: #181d26;
+  --color-primary-active: #0d1218;
+  --color-ink: #181d26;
+  --color-body: #333840;
+  --color-muted: #41454d;
+  --color-hairline: #dddddd;
+  --color-border-strong: #9297a0;
+  --color-canvas: #ffffff;
+  --color-surface-soft: #f8fafc;
+  --color-surface-strong: #e0e2e6;
+  --color-surface-dark: #181d26;
+  /* Signature surfaces (brand voltage) */
+  --color-signature-coral: #aa2d00;
+  --color-signature-forest: #0a2e0e;
+  --color-signature-cream: #f5e9d4;
+  --color-signature-peach: #fcab79;
+  --color-signature-mint: #a8d8c4;
+  --color-signature-yellow: #f4d35e;
+  --color-signature-mustard: #d9a441;
+  /* Semantic */
+  --color-link: #1b61c9;
+  --color-info: #254fad;
+  --color-info-border: #458fff;
+  --color-success: #006400;
+  --color-success-border: #39bf45;
+
+  /* Legacy "coffee-*" aliases now mapped onto the design system so every
+     existing component re-skins to the editorial palette automatically. */
+  --color-coffee: #181d26;          /* ink */
+  --color-coffee-accent: #181d26;   /* primary near-black */
+  --color-coffee-border: #dddddd;   /* hairline */
+  --color-coffee-bg: #f8fafc;       /* surface-soft canvas */
+  --color-coffee-muted: #41454d;    /* muted */
+  --color-coffee-light: #f8fafc;    /* surface-soft */
+
+  /* Border radius scale (DS) */
+  --radius-xs: 2px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 }
 
 body {
-  font-family: 'Inter', sans-serif;
-  background-color: #FAF9F6;
-  color: #3E2723;
+  font-family: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  background-color: #f8fafc;   /* surface-soft canvas */
+  color: #181d26;              /* ink */
+  font-weight: 400;            /* DS prefers modest weights; emphasis via size/contrast */
 }
 
-/* Custom Bento styles */
+/* ── Reusable DS component classes ──────────────────────────────────── */
+/* Primary CTA — near-black pill-less rounded-lg button */
+.ds-btn-primary {
+  background-color: #181d26;
+  color: #ffffff;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 12px;
+  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  transition: background-color 0.15s ease;
+}
+.ds-btn-primary:hover { background-color: #0d1218; }
+.ds-btn-primary:disabled { background-color: #9297a0; cursor: not-allowed; }
+
+/* Secondary — white with hairline outline */
+.ds-btn-secondary {
+  background-color: #ffffff;
+  color: #181d26;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 12px;
+  border: 1px solid #dddddd;
+  padding: 10px 20px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+.ds-btn-secondary:hover { background-color: #f8fafc; }
+
+/* Standard text input */
+.ds-input {
+  background-color: #ffffff;
+  color: #181d26;
+  font-size: 14px;
+  border: 1px solid #dddddd;
+  border-radius: 6px;
+  padding: 10px 14px;
+}
+.ds-input:focus { outline: none; border-color: #458fff; }
+
+/* Content card */
+.ds-card {
+  background-color: #ffffff;
+  border: 1px solid #dddddd;
+  border-radius: 10px;
+}
+
+/* ── Select dropdowns (system-wide standard) ─────────────────────────
+   Replace the cramped native arrow with a consistent custom chevron:
+   icon vertically centered, ~18px from the right border, inside a ~44px
+   icon area so text never crowds the arrow. Applies to every <select>. */
+select {
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2341454d' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 18px center;
+  background-size: 16px 16px;
+  padding-right: 44px;
+}
+/* Keep the chevron crisp on dark-surfaced selects */
+select.on-dark,
+.surface-dark select {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23ffffff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+}
+
+/* Status badge base */
+.ds-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  border-radius: 9999px;
+  padding: 2px 10px;
+  border: 1px solid transparent;
+}
+
+/* Bento card — aligned to DS card (hairline border, rounded-lg, flat) */
 .bento-card {
-  background: white;
-  border: 1.5px solid #E5E1DA;
-  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #dddddd;
+  border-radius: 12px;
   padding: 20px;
   display: flex;
   flex-direction: column;
@@ -33,20 +156,20 @@ body {
 }
 
 .bento-card:hover {
-  border-color: #8B4513;
-  box-shadow: 0 4px 12px rgba(139, 69, 19, 0.05);
+  border-color: #181d26;
+  box-shadow: 0 1px 3px rgba(24, 29, 38, 0.06);
 }
 
 .stat-value {
   font-size: 24px;
-  font-weight: 700;
-  color: #3E2723;
+  font-weight: 500;
+  color: #181d26;
 }
 
 .stat-label {
   font-size: 11px;
-  font-weight: 600;
-  color: #8C8479;
+  font-weight: 500;
+  color: #41454d;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -60,9 +183,9 @@ body {
   background: transparent;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #E5E1DA;
+  background: #dddddd;
   border-radius: 3px;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: #C8C4BC;
+  background: #9297a0;
 }
